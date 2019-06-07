@@ -26,7 +26,7 @@ setup(
     author_email='max.weidemann@uni-rostock.de, bastian.laasch@uni-rostock.de, johannes.michael@uni-rostock.de',
     install_requires=install_requires,
     dependency_links=[
-                      # 'git+https://github.com/CITlabRostock/citlab-python-util.git@master#egg=citlab-python-util'
+                      'git+https://github.com/CITlabRostock/citlab-python-util.git#egg=citlab-python-util-0.0.1'
     ],
     classifiers=[
         "Programming Language :: Python :: 3.6",
