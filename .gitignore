@@ -6,6 +6,13 @@ __pycache__/
 # C extensions
 *.so
 
+# Java extensions
+*.java
+*.class
+
+# PyCharm's ".idea folder"
+.idea/
+
 # Distribution / packaging
 .Python
 build/
