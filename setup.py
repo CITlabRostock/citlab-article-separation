@@ -11,8 +11,10 @@ with open('README.rst', encoding='utf-8') as f:
 with open('requirements.txt', encoding='utf-8') as f:
     all_reqs = f.read().split('\n')
 
-install_requires = [x.strip() for x in all_reqs if 'git+' not in x]
-dependency_links = [x.strip().replace('git+', '') for x in all_reqs if x.startswith('git+')]
+# install_requires = [x.strip() for x in all_reqs if 'git+' not in x]
+# dependency_links = [x.strip().replace('git+', '') for x in all_reqs if x.startswith('git+')]
+
+install_requires = [x.strip() for x in all_reqs]
 
 setup(
     name='citlab_article_separation',
@@ -25,9 +27,9 @@ setup(
     author='CITlab',
     author_email='max.weidemann@uni-rostock.de, bastian.laasch@uni-rostock.de, johannes.michael@uni-rostock.de',
     install_requires=install_requires,
-    dependency_links=[
-                      'git+https://github.com/CITlabRostock/citlab-python-util.git#egg=citlab-python-util-0.0.1'
-    ],
+    # dependency_links=[
+    #                   'git+https://github.com/CITlabRostock/citlab-python-util.git#egg=citlab-python-util-0.0.1'
+    # ],
     classifiers=[
         "Programming Language :: Python :: 3.6",
         "License :: OSI Approved :: Apache Software License",
