@@ -8,4 +8,4 @@ Pillow==6.0.0
 pyparsing==2.4.0
 python-dateutil==2.8.0
 six==1.12.0
-git+https://github.com/CITlabRostock/citlab-python-util.git@0.0.1#egg=citlab-python-util
+git+git://github.com/CITlabRostock/citlab-python-util.git@master#egg=citlab-python-util
