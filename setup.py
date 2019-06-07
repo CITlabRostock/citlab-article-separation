@@ -21,7 +21,7 @@ setup(
     version=__version__,
     description='Python utility functions for different kind of tasks.',
     long_description=long_description,
-    url='https://github.com/CITlabRostock/citlab-python-util',
+    url='https://github.com/CITlabRostock/citlab-article-separation',
     packages=find_packages(exclude=['tests', 'docs', 'examples']),
     license='Apache License 2.0',
     author='CITlab',
