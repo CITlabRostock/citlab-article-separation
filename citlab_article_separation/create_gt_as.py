@@ -172,7 +172,7 @@ def apply_dilation(img, kernel_size=4):
     if kernel_size == 0:
         return img
     # define kernel for dilation
-    kernel = np.ones((kernel_size, kernel_size), np.uint8)
+    # kernel = np.ones((kernel_size, kernel_size), np.uint8)
     kernel = np.ones((kernel_size, 1), np.uint8)
     # if image is a PIL Image, convert it to a numpy array, so it can be used in opencv
     if type(img) == Image.Image:
