@@ -53,8 +53,9 @@ def smooth_article_surrounding_polygons(asp_dict, poly_norm_dist=10, or_dims=(40
     """
     asp_dict_smoothed = {}
     for id in asp_dict:
+        asp_dict_smoothed[id] = []
         sp_smooth = smooth_surrounding_polygon(asp_dict[id], poly_norm_dist, or_dims)
-        asp_dict_smoothed[id] = sp_smooth
+        asp_dict_smoothed[id].append(sp_smooth)
     return asp_dict_smoothed
 
 
