@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 from collections import defaultdict
 
+import jpype
 import numpy as np
 from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
@@ -72,6 +73,7 @@ def plot_polys_binary(polygon_list, img=None, img_width=None, img_height=None):
 
 
 if __name__ == '__main__':
+    jpype.startJVM(jpype.getDefaultJVMPath())
     parser = ArgumentParser()
     parser.add_argument('--path_to_xml_lst', default='', type=str, metavar="STR",
                         help="path to the lst file containing the file paths of the PageXMLs.")
@@ -114,7 +116,7 @@ if __name__ == '__main__':
                 # surr_polys_dict[a_id].append(surr_polys)
                 surr_polys_dict[a_id] = surr_polys
 
-            plot_gt_data('/home/max/data/as/NewsEye_ONB_Data/136358/ONB_aze_18950706/ONB_aze_18950706_5.jpg',
+            plot_gt_data("/home/max/devel/projects/article_separation/data/newseye_onb/136358/ONB_aze_18950706/ONB_aze_18950706_7.jpg",
                          surr_polys_dict)
 
             # convert pillow image to numpy array to use it in opencv
@@ -130,4 +132,6 @@ if __name__ == '__main__':
 
             # save image
             polygon_img.save(savedir + path_to_page_xml.split("/")[-1] + '.png')
-            # polygon_img.show()
+            polygon_img.show()
+
+    jpype.shutdownJVM()

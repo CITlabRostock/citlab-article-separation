@@ -79,7 +79,7 @@ def get_article_rectangles(page):
     ps_rectangle = ArticleRectangle(ps_rectangle.x, ps_rectangle.y, ps_rectangle.width, ps_rectangle.height,
                                     page.get_textlines())
 
-    ars = ps_rectangle.create_subregions()
+    ars = ps_rectangle.create_subregions(max_d=int(1/20 * ps_rectangle.height))
 
     img_width, img_height = page.get_image_resolution()
 
