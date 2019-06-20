@@ -74,7 +74,7 @@ class ArticleRectangle(Rectangle):
 
         return False
 
-    def create_subregions(self, ar_list=None, des_dist=5, max_d=50):
+    def create_subregions(self, ar_list=None, des_dist=5, max_d=50, min_rect_size=0):
 
         # width1 equals width2 if width is even, else width2 = width1 + 1
         # same for height1 and height2
@@ -145,8 +145,17 @@ class ArticleRectangle(Rectangle):
 
         # run create_subregions on Rectangles that contain more than one TextLine object
         for a_rect in [a_rect1, a_rect2, a_rect3, a_rect4]:
-            if len(a_rect.a_ids) > 1:  # or a_rect.width > 50:
-                a_rect.create_subregions(ar_list)
+            if len(a_rect.a_ids) > 1 and ("a15" in a_rect.a_ids or "a16" in a_rect.a_ids):
+                print(a_rect.get_vertices())
+                print(a_rect.a_ids)
+                for tl in a_rect.textlines:
+                    print('\t', (tl.baseline.points_list, tl.id))
+                print("\n")
+            if len(a_rect.a_ids) > 1:
+                a_rect.create_subregions(ar_list, min_rect_size=min_rect_size)
+            # TODO: height or width?
+            elif 0 < min_rect_size < a_rect.height:
+                a_rect.create_subregions(ar_list, min_rect_size=min_rect_size)
             else:
                 ar_list.append(a_rect)
 
@@ -188,15 +197,13 @@ class ArticleRectangle(Rectangle):
         list_of_interline_distances = list(list_of_interline_distances_java)
 
         tl_list_copy = copy.deepcopy(tl_list)
-        interline_distance_factor = [1.0] * len(list_of_interline_distances)
 
         # Update the bounding boxes for the textlines
-        for tl_tuple, tl_interdist, interdist_factor in zip(tl_list_copy, list_of_interline_distances,
-                                                            interline_distance_factor):
-            tl, _, tl_bl, _ = tl_tuple
+        for tl_tuple, tl_interdist in zip(tl_list_copy, list_of_interline_distances):
+            _, _, tl_bl, _ = tl_tuple
 
             # bounding rectangle moved up and down
-            height_shift = int(interdist_factor * tl_interdist)
+            height_shift = int(tl_interdist)
             tl_bl.bounds.translate(dx=0, dy=-height_shift)
             tl_bl.bounds.height += int(1.1 * height_shift)
 
@@ -245,7 +252,8 @@ class ArticleRectangle(Rectangle):
                 if tl1_surr_poly is not None and not has_intersect_surr_polys[i]:
                     if tl2_surr_poly is not None and not has_intersect_surr_polys[j]:
                         intersection = tl1_surr_poly.intersection(tl2_surr_poly)
-                        has_intersect_surr_polys[j] = True if intersection.width > 0 and intersection.height > 0 else False
+                        has_intersect_surr_polys[
+                            j] = True if intersection.width >= 0 and intersection.height >= 0 else False
                     else:
                         intersection = tl1_surr_poly.intersection(tl2_bl.bounds)
                     if not (intersection.width >= 0 and intersection.height >= 0 and tl1_aid != tl2_aid):
@@ -256,7 +264,8 @@ class ArticleRectangle(Rectangle):
                 else:
                     if tl2_surr_poly is not None:
                         intersection = tl1_bl.bounds.intersection(tl2_surr_poly)
-                        has_intersect_surr_polys[j] = True if intersection.width > 0 and intersection.height > 0 else False
+                        has_intersect_surr_polys[
+                            j] = True if intersection.width >= 0 and intersection.height >= 0 else False
                     else:
                         intersection = tl1_bl.bounds.intersection(tl2_bl.bounds)
 
@@ -268,7 +277,7 @@ class ArticleRectangle(Rectangle):
                     tl_surr_poly_final.append((tl1, tl1_bl.bounds, tl1_aid))
 
         if len(has_intersect_surr_polys) > 0:
-            if has_intersect_surr_polys[-1]:
+            if has_intersect_surr_polys[-1] or tl_list_copy[-1][1] is None:
                 tl_surr_poly_final.append((tl_list_copy[-1][0], tl_list_copy[-1][2].bounds, tl_list_copy[-1][3]))
             else:
                 tl_surr_poly_final.append((tl_list_copy[-1][0], tl_list_copy[-1][1], tl_list_copy[-1][3]))
