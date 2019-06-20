@@ -77,13 +77,15 @@ def get_article_polys_from_file(poly_file_name):
             if article_id is None:
                 continue
 
+            append_list = []
             for a_poly in ad[article_id]:
                 try:
-                    res_without_none.append(a_poly.baseline.to_polygon())
+                    append_list.append(a_poly.baseline.to_polygon())
                 except(AttributeError):
                     print("'NoneType' object in PAGEXML with id {} has no attribute 'to_polygon'!\n".format(
                         a_poly.id))
                     continue
+            res_without_none.append(append_list)
 
             # res_without_none.append([a_poly.baseline.to_polygon() for a_poly in ad[article_id]])
 
