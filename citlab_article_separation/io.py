@@ -59,7 +59,14 @@ def get_article_polys_from_file(poly_file_name):
             a = []
             for a_poly in a_polys:
                 if a_poly.baseline:
-                    a.append(a_poly.baseline.to_polygon())
+                    try:
+                        a.append(a_poly.baseline.to_polygon())
+                    except(AttributeError):
+                        print("'NoneType' object in PAGEXML with id {} has no attribute 'to_polygon'!\n".format(
+                            a_poly.id))
+                        continue
+
+                    # a.append(a_poly.baseline.to_polygon())
                 else:
                     print(f"No baseline found: Skipping text line with id '{a_poly.id}' from file '{poly_file_name}'.")
             res_with_none.append(a)
@@ -70,7 +77,15 @@ def get_article_polys_from_file(poly_file_name):
             if article_id is None:
                 continue
 
-            res_without_none.append([a_poly.baseline.to_polygon() for a_poly in ad[article_id]])
+            for a_poly in ad[article_id]:
+                try:
+                    res_without_none.append(a_poly.baseline.to_polygon())
+                except(AttributeError):
+                    print("'NoneType' object in PAGEXML with id {} has no attribute 'to_polygon'!\n".format(
+                        a_poly.id))
+                    continue
+
+            # res_without_none.append([a_poly.baseline.to_polygon() for a_poly in ad[article_id]])
 
         if len(res_without_none) == 0:
             # Cannot load PageXml file or cannot extract the articles from the PageXml
