@@ -19,7 +19,7 @@ def get_article_surrounding_polygons(ar_dict):
     return asp_dict
 
 
-def smooth_article_surrounding_polygons(asp_dict, poly_norm_dist=10, or_dims=(400, 800, 600, 400)):
+def smooth_article_surrounding_polygons(asp_dict, poly_norm_dist=10, orientation_dims=(600, 300, 600, 300), offset=0):
     """
     Create smoothed polygons over "crooked" polygons, belonging to different article_ids.
 
@@ -31,9 +31,11 @@ def smooth_article_surrounding_polygons(asp_dict, poly_norm_dist=10, or_dims=(40
     (width_vertical, height_vertical, width_horizontal, height_horizontal), i.e. North and South rectangles
     have dimensions width_v x height_v, whereas East and West rectangles have dimensions width_h x height_h.
 
-    2.2) Each rectangle counts the number of contained points from the normalized polygon
+    2.2) The offset controls how far the cones overlap (e.g. how far the north cone gets translated south)
 
-    2.3) The top two rectangle counts determine the orientation of the vertex: vertical, horizontal or one
+    2.3) Each rectangle counts the number of contained points from the normalized polygon
+
+    2.4) The top two rectangle counts determine the orientation of the vertex: vertical, horizontal or one
     of the four possible corner types.
 
     3.) Vertices with a differing orientation to its agreeing neighbours are assumed to be mislabeled and
@@ -48,14 +50,16 @@ def smooth_article_surrounding_polygons(asp_dict, poly_norm_dist=10, or_dims=(40
 
     :param asp_dict: dict (keys = article_id, values = list of "crooked" polygons)
     :param poly_norm_dist: int, distance between pixels in normalized polygon
-    :param or_dims: tuple (width_v, height_v, width_h, height_h), the dimensions of the orientation rectangles
+    :param orientation_dims: tuple (width_v, height_v, width_h, height_h), the dimensions of the orientation rectangles
+    :param offset: int, number of pixel that the orientation cones overlap
     :return: dict (keys = article_id, values = smoothed polygons)
     """
     asp_dict_smoothed = {}
     for id in asp_dict:
         asp_dict_smoothed[id] = []
-        sp_smooth = smooth_surrounding_polygon(asp_dict[id], poly_norm_dist, or_dims)
-        asp_dict_smoothed[id].append(sp_smooth)
+        for poly in asp_dict[id]:
+            sp_smooth = smooth_surrounding_polygon(poly, poly_norm_dist, orientation_dims, offset)
+            asp_dict_smoothed[id].append(sp_smooth)
     return asp_dict_smoothed
 
 
