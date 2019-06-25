@@ -22,10 +22,14 @@ def get_data_from_pagexml(path_to_pagexml):
     list_of_polygons = []
 
     for txt_line in list_of_txt_lines:
-        # get the text of the text line
-        list_of_text.append(txt_line.text)
-        # get the baseline of the text line as polygon
-        list_of_polygons.append(txt_line.baseline.to_polygon())
+        try:
+            # get the baseline of the text line as polygon
+            list_of_polygons.append(txt_line.baseline.to_polygon())
+            # get the text of the text line
+            list_of_text.append(txt_line.text)
+        except(AttributeError):
+            print("'NoneType' object in PAGEXML with id {} has no attribute 'to_polygon'!\n".format(txt_line.id))
+            continue
 
     list_of_tuples = [(list_of_text[i], list_of_polygons[i]) for i in range(len(list_of_text))]
 
@@ -38,14 +42,28 @@ def save_results_in_pagexml(path_to_pagexml, list_of_txt_line_labels):
     :param path_to_pagexml:
     :param list_of_txt_line_labels:
     """
-    page_file = Page.Page(path_to_pagexml)
+    page_file = Page(path_to_pagexml)
     # get all text lines of the loaded page file
     list_of_txt_lines = page_file.get_textlines()
 
-    for txt_line_index, txt_line in enumerate(list_of_txt_lines):
-        if list_of_txt_line_labels[txt_line_index] == -1:
+    txt_line_index = -1
+
+    for i, txt_line in enumerate(list_of_txt_lines):
+        txt_line_index += 1
+
+        try:
+            txt_line.baseline.to_polygon()
+        except(AttributeError):
+            txt_line_index -= 1
             continue
-        txt_line.set_article_id("a" + str(list_of_txt_line_labels[txt_line_index]))
+
+        if list_of_txt_line_labels[txt_line_index] == -1:
+            txt_article_id = txt_line.get_article_id()
+
+            if txt_article_id is not None:
+                txt_line.set_article_id(article_id=None)
+        else:
+            txt_line.set_article_id(article_id="a" + str(list_of_txt_line_labels[txt_line_index]))
 
     page_file.set_textline_attr(list_of_txt_lines)
     page_file.write_page_xml(path_to_pagexml)
@@ -104,9 +122,10 @@ if __name__ == "__main__":
     # hypo_files_paths_list = flags.path_to_xml_lst
     # hypo_files = [line.rstrip('\n') for line in open(hypo_files_paths_list, "r")]
 
-    hypo_files_paths_list = "./test/resources/newseye_as_test_data/hy_xml_paths.lst"
-    # hypo_files_paths_list = "./test/resources/newseye_as_test_data_onb/hy_xml_paths.lst"
-    # hypo_files_paths_list = "./test/resources/Le_Matin_Set/hy_xml_paths.lst"
+    # hypo_files_paths_list = "/home/basti/Documents/Job_Rostock/NewsEye/data_corrected_hypo/aze/paths_xml.lst"
+    # hypo_files_paths_list = "/home/basti/Documents/Job_Rostock/NewsEye/data_corrected_hypo/ibn/paths_xml.lst"
+    # hypo_files_paths_list = "/home/basti/Documents/Job_Rostock/NewsEye/data_corrected_hypo/krz/paths_xml.lst"
+    hypo_files_paths_list = "/home/basti/Documents/Job_Rostock/NewsEye/data_corrected_hypo/nfp/paths_xml.lst"
 
     hypo_files = [line.rstrip('\n') for line in open(hypo_files_paths_list, "r")]
 

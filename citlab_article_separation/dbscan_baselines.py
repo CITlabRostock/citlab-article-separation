@@ -5,7 +5,7 @@ import math
 import jpype
 import collections
 
-from citlab_python_util import geometry
+from citlab_python_util.geometry.rectangle import Rectangle
 from citlab_python_util.geometry.util import calc_reg_line_stats, get_dist_fast, get_in_dist, get_off_dist
 from citlab_python_util.geometry.polygon import norm_poly_dists
 
@@ -50,7 +50,7 @@ class DBSCANBaselines:
 
         # call java code to calculate the interline distances
         if use_java_code:
-            java_object = jpype.JPackage("util.Java_Util").JavaClass()
+            java_object = jpype.JPackage("citlab_article_separation.java").Util()
 
             list_of_nomred_polygon_java = []
 
@@ -289,17 +289,17 @@ class DBSCANBaselines:
         # assumption: if a polygon has nearly the max interline distance "max_d" -> probably this polygon is a headline
         # the direction downward is probably more important than upward
         if interline_distance >= 0.9 * self.max_d:
-            rectangle_expand = geometry.Rectangle(int(polygon.bounds.x - width),
+            rectangle_expand = Rectangle(int(polygon.bounds.x - width),
                                                   int(polygon.bounds.y - 1 / 2 * height),
                                                   int(polygon.bounds.width + 2 * width),
                                                   int(polygon.bounds.height + 5 / 2 * height))
         else:
-            rectangle_expand = geometry.Rectangle(int(polygon.bounds.x - width),
+            rectangle_expand = Rectangle(int(polygon.bounds.x - width),
                                                   int(polygon.bounds.y - height),
                                                   int(polygon.bounds.width + 2 * width),
                                                   int(polygon.bounds.height + 2 * height))
 
-        rectangle = geometry.Rectangle(int(polygon.bounds.x - self.bounding_box_epsilon),
+        rectangle = Rectangle(int(polygon.bounds.x - self.bounding_box_epsilon),
                                        int(polygon.bounds.y - self.bounding_box_epsilon),
                                        int(polygon.bounds.width + 2 * self.bounding_box_epsilon),
                                        int(polygon.bounds.height + 2 * self.bounding_box_epsilon))

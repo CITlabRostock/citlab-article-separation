@@ -1,6 +1,8 @@
+import os
 from argparse import ArgumentParser
 from collections import defaultdict
 
+import jpype
 import numpy as np
 from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
@@ -9,7 +11,7 @@ from citlab_python_util.geometry.rectangle import Rectangle
 from citlab_python_util.geometry.util import ortho_connect
 from citlab_python_util.image_processing.morphology import apply_transform
 from citlab_python_util.parser.xml.page import plot as page_plot
-from citlab_python_util.parser.xml.page.page import Page
+from citlab_python_util.parser.xml.page.page import Page, Points
 from citlab_python_util.plot import colors
 from matplotlib.collections import PolyCollection
 
@@ -72,6 +74,7 @@ def plot_polys_binary(polygon_list, img=None, img_width=None, img_height=None):
 
 
 if __name__ == '__main__':
+    jpype.startJVM(jpype.getDefaultJVMPath())
     parser = ArgumentParser()
     parser.add_argument('--path_to_xml_lst', default='', type=str, metavar="STR",
                         help="path to the lst file containing the file paths of the PageXMLs.")
@@ -80,54 +83,74 @@ if __name__ == '__main__':
     # if args.path_to_xml_lst == '':
     #     raise ValueError(f'Please provide a path to the list of PageXML files.')
 
-    path_to_xml_lst = './tests/resources/test_run_gt_generation/onb_page_test.lst'
-    savedir = './tests/resources/test_run_gt_generation/'
+    path_to_xml_lst = './tests/resources/test_run_gt_generation/onb_page.lst'
+    path_to_img_lst = './tests/resources/test_run_gt_generation/onb_img.lst'
+    savedir = './tests/resources/test_run_gt_generation/onb_gt_contour_test/'
 
     with open(path_to_xml_lst) as f:
-        for path_to_page_xml in f.readlines():
-            path_to_page_xml = path_to_page_xml.strip()
-            page = Page(path_to_page_xml)
+        with open(path_to_img_lst) as g:
+            for path_to_page_xml, path_to_img in zip(f.readlines(), g.readlines()):
+                path_to_page_xml = path_to_page_xml.strip()
+                path_to_img = path_to_img.strip()
 
-            # Get the article rectangles as a list of ArticleRectangle objects
-            ars, img_height, img_width = get_article_rectangles(page)
+                savefile_name = savedir + path_to_page_xml.split("/")[-1] + '.png'
 
-            # resize the image to draw the border polygons (if available)
-            img_height += 1
-            img_width += 1
-
-            # Convert the list of article rectangles to a dictionary with the article ids as keys
-            # and the corresponding list of rectangles as value
-            ars_dict = filter_by_attribute(ars, "a_ids")
-            print(ars_dict.keys())
-
-            # Convert the article rectangles to surrounding polygons
-            surr_polys_dict = defaultdict(list)
-            polygon_img = None
-            for a_id, ars_sub in ars_dict.items():
-                if a_id == 'blank':
+                if os.path.isfile(savefile_name):
+                    print(f"File {savefile_name} already exists, skipping...")
                     continue
-                rs = [Rectangle(ar.x, ar.y, ar.width, ar.height) for ar in ars_sub]
-                surr_polys = ortho_connect(rs)
 
-                # returns a pillow image
-                polygon_img = plot_polys_binary(surr_polys, polygon_img, img_height=img_height, img_width=img_width)
-                # surr_polys_dict[a_id].append(surr_polys)
-                surr_polys_dict[a_id] = surr_polys
+                page = Page(path_to_page_xml)
 
-            plot_gt_data('/home/max/data/as/NewsEye_ONB_Data/136358/ONB_aze_18950706/ONB_aze_18950706_5.jpg',
-                         surr_polys_dict)
+                # Get the article rectangles as a list of ArticleRectangle objects
+                ars, img_height, img_width = get_article_rectangles(page)
 
-            # convert pillow image to numpy array to use it in opencv
-            polygon_img_np = polygon_img.convert('L')
-            polygon_img_np = np.array(polygon_img_np, np.uint8)
+                # resize the image to draw the border polygons (if available)
+                img_height += 1
+                img_width += 1
 
-            polygon_img_np = apply_transform(polygon_img_np, transform_type='dilation', kernel_size=(20, 20),
-                                             kernel_type='rect', iterations=1)
+                # Convert the list of article rectangles to a dictionary with the article ids as keys
+                # and the corresponding list of rectangles as value
+                ars_dict = filter_by_attribute(ars, "a_ids")
 
-            # convert back to pillow image to save it properly
-            # also make sure to reduce the image width and height by one pixel
-            polygon_img = Image.fromarray(polygon_img_np[:-1, :-1])
+                # Convert the article rectangles to surrounding polygons
+                surr_polys_dict = defaultdict(list)
+                polygon_img = None
+                for a_id, ars_sub in ars_dict.items():
+                    if a_id == 'blank':
+                        continue
+                    rs = [Rectangle(ar.x, ar.y, ar.width, ar.height) for ar in ars_sub]
+                    surr_polys = ortho_connect(rs)
 
-            # save image
-            polygon_img.save(savedir + path_to_page_xml.split("/")[-1] + '.png')
-            # polygon_img.show()
+                    # returns a pillow image
+                    polygon_img = plot_polys_binary(surr_polys, polygon_img, img_height=img_height, img_width=img_width)
+                    # surr_polys_dict[a_id].append(surr_polys)
+                    surr_polys_dict[a_id] = surr_polys
+                # Also add the printspace to the GT data
+                ps_coords = page.get_print_space_coords()
+                ps_poly = Points(ps_coords).to_polygon()
+                ps_rectangle = ps_poly.get_bounding_box()
+                polygon_img = plot_polys_binary([ps_rectangle.get_vertices()], polygon_img)
+
+                # Comment out if you want to see the image with the corresponding regions before saving
+                # plot_gt_data(path_to_img, surr_polys_dict)
+
+                # convert pillow image to numpy array to use it in opencv
+                polygon_img_np = polygon_img.convert('L')
+                polygon_img_np = np.array(polygon_img_np, np.uint8)
+
+                polygon_img_np = apply_transform(polygon_img_np, transform_type='dilation', kernel_size=(20, 20),
+                                                 kernel_type='rect', iterations=1)
+
+                polygon_img_np = apply_transform(polygon_img_np, transform_type='erosion', kernel_size=(17, 17),
+                                                 kernel_type='rect', iterations=1)
+
+                # convert back to pillow image to save it properly
+                # also make sure to reduce the image width and height by one pixel
+                polygon_img = Image.fromarray(polygon_img_np[:-1, :-1])
+
+                # save image
+                polygon_img.save(savefile_name)
+                print(f'Saved file {savefile_name}')
+                # polygon_img.show()
+
+    jpype.shutdownJVM()
