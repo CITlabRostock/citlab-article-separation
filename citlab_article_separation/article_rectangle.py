@@ -145,12 +145,6 @@ class ArticleRectangle(Rectangle):
 
         # run create_subregions on Rectangles that contain more than one TextLine object
         for a_rect in [a_rect1, a_rect2, a_rect3, a_rect4]:
-            if len(a_rect.a_ids) > 1 and ("a15" in a_rect.a_ids or "a16" in a_rect.a_ids):
-                print(a_rect.get_vertices())
-                print(a_rect.a_ids)
-                for tl in a_rect.textlines:
-                    print('\t', (tl.baseline.points_list, tl.id))
-                print("\n")
             if len(a_rect.a_ids) > 1:
                 a_rect.create_subregions(ar_list, min_rect_size=min_rect_size)
             # TODO: height or width?
