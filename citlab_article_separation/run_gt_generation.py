@@ -2,6 +2,7 @@ import os
 from argparse import ArgumentParser
 from collections import defaultdict
 
+import cv2
 import jpype
 import numpy as np
 from PIL import Image, ImageDraw
@@ -47,7 +48,7 @@ def plot_gt_data(img_path, surr_polys_dict):
     plt.show()
 
 
-def plot_polys_binary(polygon_list, img=None, img_width=None, img_height=None):
+def plot_polys_binary(polygon_list, img=None, img_width=None, img_height=None, closed=True):
     """Adds a list of polygons `polygon_list` to a pillow image `img`. If `img` is None a new pillow image is generated
     with a width of `img_width` and a height of `img_height`.
 
@@ -59,6 +60,8 @@ def plot_polys_binary(polygon_list, img=None, img_width=None, img_height=None):
     :type img_width: int
     :param img_height: the height of the newly created image
     :type img_height: int
+    :param closed: draw a closed polygon or not
+    :type closed: bool
     :return: pillow image
     """
     if img is None:
@@ -68,36 +71,77 @@ def plot_polys_binary(polygon_list, img=None, img_width=None, img_height=None):
         img = Image.new('1', (img_width, img_height))
     pdraw = ImageDraw.Draw(img)
     for poly in polygon_list:
-        pdraw.polygon(poly, outline="white")
+        if closed:
+            pdraw.polygon(poly, outline="white")
+        else:
+            pdraw.line(poly, fill="white", width=7)
 
     return img
+
+
+def rescale_image(img=None):
+    if img is None:
+        print("You must provide an image in order to rescale it.")
+        exit(1)
+    pass
 
 
 if __name__ == '__main__':
     jpype.startJVM(jpype.getDefaultJVMPath())
     parser = ArgumentParser()
-    parser.add_argument('--path_to_xml_lst', default='', type=str, metavar="STR",
+    parser.add_argument('--path_to_xml_lst', default='', type=str,
                         help="path to the lst file containing the file paths of the PageXMLs.")
+    parser.add_argument('--path_to_img_lst', default='', type=str,
+                        help='path to the lst file containing the file paths of the images.')
+    parser.add_argument('--scaling_factor', default=0.5, type=int,
+                        help='how much the GT images will be down-sampled, defaults to 0.5.')
+    parser.add_argument('--save_folder', default='', type=str,
+                        help='path to the folder the GT is written to.')
     args = parser.parse_args()
 
-    # if args.path_to_xml_lst == '':
-    #     raise ValueError(f'Please provide a path to the list of PageXML files.')
+    if args.path_to_xml_lst == '':
+        raise ValueError(f'Please provide a path to the list of PageXML files.')
+
+    if args.path_to_img_lst == '':
+        raise ValueError(f'Please provide a path to the list of image files.')
+
+    if args.save_folder == '':
+        raise ValueError(f'Please provide a valid save folder name.')
+
+    if not os.path.exists(os.path.join(args.save_folder, 'C3')):
+        os.makedirs(os.path.join(args.save_folder, 'C3'))
 
     path_to_xml_lst = './tests/resources/test_run_gt_generation/onb_page.lst'
     path_to_img_lst = './tests/resources/test_run_gt_generation/onb_img.lst'
     savedir = './tests/resources/test_run_gt_generation/onb_gt_contour_test/'
 
-    with open(path_to_xml_lst) as f:
-        with open(path_to_img_lst) as g:
+    with open(args.path_to_xml_lst) as f:
+        with open(args.path_to_img_lst) as g:
             for path_to_page_xml, path_to_img in zip(f.readlines(), g.readlines()):
                 path_to_page_xml = path_to_page_xml.strip()
                 path_to_img = path_to_img.strip()
 
-                savefile_name = savedir + path_to_page_xml.split("/")[-1] + '.png'
+                page_filename = os.path.basename(path_to_page_xml)
+                newspaper_filename = os.path.splitext(page_filename)[0]
 
-                if os.path.isfile(savefile_name):
-                    print(f"File {savefile_name} already exists, skipping...")
-                    continue
+                # Same structure as for the baseline detection training
+                article_gt_savefile_name = os.path.join(args.save_folder, "C3", newspaper_filename + "_GT0.png")
+                baseline_gt_savefile_name = os.path.join(args.save_folder, "C3", newspaper_filename + "_GT1.png")
+                other_gt_savefile_name = os.path.join(args.save_folder, "C3", newspaper_filename + "_GT2.png")
+                downscaled_grey_image_savefile_name = os.path.join(args.save_folder, newspaper_filename + ".png")
+
+                rotation_savefile_name = downscaled_grey_image_savefile_name + ".rot"
+
+                # create rotation files
+                with open(rotation_savefile_name, "w") as rot:
+                    rot.write("0")
+
+                # if os.path.isfile(article_gt_savefile_name) and os.path.isfile(baseline_gt_savefile_name) \
+                #         and os.path.isfile(other_gt_savefile_name) and os.path.isfile(
+                #     downscaled_grey_image_savefile_name):
+                #     print(
+                #         f"GT Files for PageXml {path_to_page_xml} already exist, skipping...")
+                #     continue
 
                 page = Page(path_to_page_xml)
 
@@ -114,7 +158,8 @@ if __name__ == '__main__':
 
                 # Convert the article rectangles to surrounding polygons
                 surr_polys_dict = defaultdict(list)
-                polygon_img = None
+                article_polygon_img = None
+                baseline_polygon_img = None
                 for a_id, ars_sub in ars_dict.items():
                     if a_id == 'blank':
                         continue
@@ -122,35 +167,90 @@ if __name__ == '__main__':
                     surr_polys = ortho_connect(rs)
 
                     # returns a pillow image
-                    polygon_img = plot_polys_binary(surr_polys, polygon_img, img_height=img_height, img_width=img_width)
-                    # surr_polys_dict[a_id].append(surr_polys)
+                    article_polygon_img = plot_polys_binary(surr_polys, article_polygon_img, img_height=img_height,
+                                                            img_width=img_width)
                     surr_polys_dict[a_id] = surr_polys
+
+                    # Add the baselines to the baseline GT image
+                    baseline_polygon_img = plot_polys_binary(
+                        [tl.baseline.points_list for ar in ars_sub for tl in ar.textlines], baseline_polygon_img,
+                        img_height=img_height, img_width=img_width, closed=False)
+
                 # Also add the printspace to the GT data
                 ps_coords = page.get_print_space_coords()
                 ps_poly = Points(ps_coords).to_polygon()
                 ps_rectangle = ps_poly.get_bounding_box()
-                polygon_img = plot_polys_binary([ps_rectangle.get_vertices()], polygon_img)
+                article_polygon_img = plot_polys_binary([ps_rectangle.get_vertices()], article_polygon_img)
+
 
                 # Comment out if you want to see the image with the corresponding regions before saving
-                # plot_gt_data(path_to_img, surr_polys_dict)
+                plot_gt_data(path_to_img, surr_polys_dict)
 
                 # convert pillow image to numpy array to use it in opencv
-                polygon_img_np = polygon_img.convert('L')
-                polygon_img_np = np.array(polygon_img_np, np.uint8)
+                def convert_and_apply_dilation(img, mode='article'):
+                    # other modes: baseline
+                    img_np = img.convert('L')
+                    img_np = np.array(img_np, np.uint8)
 
-                polygon_img_np = apply_transform(polygon_img_np, transform_type='dilation', kernel_size=(20, 20),
-                                                 kernel_type='rect', iterations=1)
+                    if mode == 'article':
+                        img_np = apply_transform(img_np, transform_type='dilation', kernel_size=(20, 20),
+                                                 kernel_type='rect',
+                                                 iterations=1)
+                        img_np = apply_transform(img_np, transform_type='erosion', kernel_size=(13, 13),
+                                                 kernel_type='rect',
+                                                 iterations=1)
+                    # elif mode == 'baseline':
+                    #     img_np = apply_transform(img_np, transform_type='dilation', kernel_size=(1, 1),
+                    #                              kernel_type='rect',
+                    #                              iterations=1)
 
-                polygon_img_np = apply_transform(polygon_img_np, transform_type='erosion', kernel_size=(17, 17),
-                                                 kernel_type='rect', iterations=1)
+                    return img_np
 
-                # convert back to pillow image to save it properly
-                # also make sure to reduce the image width and height by one pixel
-                polygon_img = Image.fromarray(polygon_img_np[:-1, :-1])
 
-                # save image
-                polygon_img.save(savefile_name)
-                print(f'Saved file {savefile_name}')
+                article_polygon_img_np = convert_and_apply_dilation(article_polygon_img, mode='article')
+                baseline_polygon_img_np = convert_and_apply_dilation(baseline_polygon_img, mode='baseline')
+
+                # make sure to reduce the image width and height by one pixel
+                article_polygon_img_np = article_polygon_img_np[:-1, :-1]
+                baseline_polygon_img_np = baseline_polygon_img_np[:-1, :-1]
+
+                # Scale the images
+                article_polygon_img_np = cv2.resize(article_polygon_img_np, None, fx=args.scaling_factor,
+                                                    fy=args.scaling_factor,
+                                                    interpolation=cv2.INTER_LINEAR)
+                article_polygon_img_np = np.array((article_polygon_img_np > 50) * 255, np.uint8)
+                baseline_polygon_img_np = cv2.resize(baseline_polygon_img_np, None, fx=args.scaling_factor,
+                                                     fy=args.scaling_factor,
+                                                     interpolation=cv2.INTER_LINEAR)
+                baseline_polygon_img_np = np.array((baseline_polygon_img_np > 50) * 255, np.uint8)
+
+                # Create the GT for the 'other' channel: white image minus the gt for article bounds and baselines
+                other_img_np = 255 * np.ones(article_polygon_img_np.shape, np.uint8)
+                other_img_np -= article_polygon_img_np
+                other_img_np -= baseline_polygon_img_np
+                # assign value 0 to the pixels that belong to a baseline as well as to an article boundary
+                other_img_np *= ((other_img_np == 0) + (other_img_np == 255))
+
+                # save article polygon image
+                cv2.imwrite(article_gt_savefile_name, article_polygon_img_np)
+                print(f'Saved file {article_gt_savefile_name}')
                 # polygon_img.show()
+
+                # save baseline polygon image
+                cv2.imwrite(baseline_gt_savefile_name, baseline_polygon_img_np)
+                print(f'Saved file {baseline_gt_savefile_name}')
+
+                # save other image
+                cv2.imwrite(other_gt_savefile_name, other_img_np)
+                print(f'Saved file {other_gt_savefile_name}')
+
+                # save the grey image in the same resolution as the GT data
+                grey_img = Image.open(path_to_img).convert('L')
+                assert grey_img.size == (img_width - 1, img_height - 1), f"resolutions of images don't match but are" \
+                    f"{grey_img.size} and ({img_width - 1, img_height - 1})"
+                grey_img_np = cv2.resize(np.array(grey_img, np.uint8), None, fx=args.scaling_factor,
+                                         fy=args.scaling_factor, interpolation=cv2.INTER_AREA)
+                cv2.imwrite(downscaled_grey_image_savefile_name, grey_img_np)
+                print(f'Saved file {downscaled_grey_image_savefile_name}')
 
     jpype.shutdownJVM()
