@@ -29,7 +29,7 @@ def load_graph(frozen_graph_filename):
     return graph
 
 
-def plot_net_output(path_to_pb, path_to_img_lst, gpu_device="0"):
+def plot_net_output(path_to_pb, path_to_img_lst, gpu_device="0", n_class=3):
     session_conf = tf.ConfigProto()
     session_conf.gpu_options.visible_device_list = gpu_device
 
@@ -62,7 +62,15 @@ def plot_net_output(path_to_pb, path_to_img_lst, gpu_device="0"):
                 out_np = sess.run(out, feed_dict={x: img_gray})
                 out_img = out_np
 
+                out_img_masked = np.ma.masked_where(out_img < 0.05, out_img)
                 # out_img = np.array((out_img > 0.2), np.uint8)
+
+                # fig = plt.figure()
+                # plt.imshow(img, cmap=plt.cm.gray)
+                # plt.imshow(out_img_masked[0, :, :, 0] * 255, cmap=plt.cm.Blues, vmin=0.0, vmax=1.0)
+                # plt.savefig("./tests/resources/test_plot_net_output/tmp/" + img_name + "_GT0" + ext, dpi=2000)
+                # # cv2.imwrite("./tests/resources/test_plot_net_output/tmp/" + img_name + "_GT0" + ext,
+                # #                             out_img[0, :, :, 0] * 255)
 
                 n_class_img = out_img.shape[-1]
                 fig = plt.figure()
