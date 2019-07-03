@@ -1,3 +1,4 @@
+tensorflow==1.12
 cycler==0.10.0
 JPype1==0.6.3
 kiwisolver==1.1.0

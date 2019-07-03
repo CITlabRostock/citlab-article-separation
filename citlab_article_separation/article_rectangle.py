@@ -4,10 +4,9 @@ import jpype
 from citlab_python_util.geometry.polygon import norm_poly_dists
 from citlab_python_util.geometry.rectangle import Rectangle
 from citlab_python_util.geometry.util import check_intersection
-from citlab_python_util.parser.xml.page.page_objects import TextLine, Points
+from citlab_python_util.parser.xml.page.page_objects import TextLine
 
 import matplotlib.patches as patches
-from citlab_python_util.plot import colors
 from matplotlib import pyplot as plt
 import numpy as np
 
