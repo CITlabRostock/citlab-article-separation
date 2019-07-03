@@ -1,4 +1,5 @@
-from citlab_python_util.geometry.util import ortho_connect, smooth_surrounding_polygon
+from citlab_python_util.geometry.util import ortho_connect, smooth_surrounding_polygon, polygon_clip, \
+                                             convex_hull, bounding_box
 from citlab_python_util.parser.xml.page.page import Page
 from citlab_python_util.parser.xml.page.page_objects import Points
 
@@ -63,6 +64,74 @@ def smooth_article_surrounding_polygons(asp_dict, poly_norm_dist=10, orientation
     return asp_dict_smoothed
 
 
+def convert_blank_article_rects_by_rects(ars_dict, method="bb"):
+    assert method == "bb" or method == "ch", "Only supports methods 'bb' (bounding boxes) and 'ch' (convex hulls)"
+    # Build up bounding boxes / convex hulls over rectangle vertices
+    poly_dict = {}
+    for key in ars_dict:
+        if key == "blank" or key is None:
+            continue
+        article_point_set = []
+        for ar in ars_dict[key]:
+            article_point_set += ar.get_vertices()
+        if method == "bb":
+            poly_dict[key] = bounding_box(article_point_set)
+        elif method == "ch":
+            poly_dict[key] = convex_hull(article_point_set)
+
+    out_dict = ars_dict.copy()
+    to_remove = []
+    # Go over blank rectangles and check for intersections with other articles
+    for ar in ars_dict["blank"]:
+        intersections = []
+        for key in poly_dict:
+            if polygon_clip(ar.get_vertices(), poly_dict[key]):
+                intersections.append(key)
+        # got exactly 1 intersection
+        if len(intersections) == 1:
+            # Convert rectangle to respective article id
+            out_dict[intersections[0]].append(ar)
+            to_remove.append(ar)
+    # Remove relevant rectangles from blanks
+    out_dict["blank"] = [ar for ar in ars_dict["blank"] if ar not in to_remove]
+    return out_dict
+
+
+def convert_blank_article_rects_by_polys(ars_dict, asp_dict, method="bb"):
+    assert method == "bb" or method == "ch", "Only supports methods 'bb' (bounding boxes) and 'ch' (convex hulls)"
+    # Build up bounding boxes / convex hulls over polygon vertices
+    poly_dict = {}
+    for key in asp_dict:
+        if key == "blank" or key is None:
+            continue
+        poly_dict[key] = []
+        for sp in asp_dict[key]:
+            if method == "bb":
+                poly_dict[key].append(bounding_box(sp.as_list()))
+            elif method == "ch":
+                poly_dict[key].append(convex_hull(sp.as_list()))
+
+    out_dict = ars_dict.copy()
+    to_remove = []
+    # Go over blank rectangles and check for intersections with other articles
+    for ar in ars_dict["blank"]:
+        intersections = []
+        for key in poly_dict:
+            for poly in poly_dict[key]:
+                if polygon_clip(ar.get_vertices(), poly):
+                    intersections.append(key)
+        # got exactly 1 intersection
+        print("AR: {}".format(ar.get_vertices()))
+        print("Intersections: {}".format(intersections))
+        if len(set(intersections)) == 1:
+            # Convert rectangle to respective article id
+            out_dict[intersections[0]].append(ar)
+            to_remove.append(ar)
+    # Remove relevant rectangles from blanks
+    out_dict["blank"] = [ar for ar in ars_dict["blank"] if ar not in to_remove]
+    return out_dict
+
+
 def get_article_rectangles(page):
     """Given the PageXml file `page` return the corresponding article subregions as a list of ArticleRectangle objects.
      Also returns the width and height of the image (NOT of the PrintSpace).
@@ -84,8 +153,10 @@ def get_article_rectangles(page):
     ps_rectangle = ArticleRectangle(ps_rectangle.x, ps_rectangle.y, ps_rectangle.width, ps_rectangle.height,
                                     page.get_textlines())
 
+    max_rect_size = int(1 / 50 * ps_rectangle.height)
+    print("Max_Rect_Size ", max_rect_size)
     ars = ps_rectangle.create_subregions(max_d=int(1 / 20 * ps_rectangle.height),
-                                         min_rect_size=int(1 / 30 * ps_rectangle.height))
+                                         max_rect_size=max_rect_size)
 
     # ars = ps_rectangle.create_subregions(max_d=int(1 / 20 * ps_rectangle.height))
 
