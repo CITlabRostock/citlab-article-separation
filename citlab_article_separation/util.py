@@ -59,12 +59,14 @@ def smooth_article_surrounding_polygons(asp_dict, poly_norm_dist=10, or_dims=(40
     return asp_dict_smoothed
 
 
-def get_article_rectangles(page):
+def get_article_rectangles(page, use_max_rect_size=True, max_d=0):
     """Given the PageXml file `page` return the corresponding article subregions as a list of ArticleRectangle objects.
      Also returns the width and height of the image (NOT of the PrintSpace).
 
     :param page: Either the path to the PageXml file or a Page object.
     :type page: Union[str, Page]
+    :param use_max_rect_size: whether to use a max rectangle size for the article rectangles or not
+    :type use_max_rect_size: bool
     :return: the article subregion list, the height and the width of the image
     """
     if type(page) == str:
@@ -80,8 +82,14 @@ def get_article_rectangles(page):
     ps_rectangle = ArticleRectangle(ps_rectangle.x, ps_rectangle.y, ps_rectangle.width, ps_rectangle.height,
                                     page.get_textlines())
 
-    ars = ps_rectangle.create_subregions(max_d=int(1 / 20 * ps_rectangle.height),
-                                         min_rect_size=int(1 / 30 * ps_rectangle.height))
+    if use_max_rect_size:
+        max_rect_size = int(1 / 20 * ps_rectangle.height)
+    else:
+        max_rect_size = 0
+    if not max_d:
+        max_d = int(1 / 20 * ps_rectangle.height)
+
+    ars = ps_rectangle.create_subregions(max_d=max_d, max_rect_size=max_rect_size)
 
     # ars = ps_rectangle.create_subregions(max_d=int(1 / 20 * ps_rectangle.height))
 

@@ -74,7 +74,7 @@ def plot_polys_binary(polygon_list, img=None, img_width=None, img_height=None, c
         if closed:
             pdraw.polygon(poly, outline="white")
         else:
-            pdraw.line(poly, fill="white", width=7)
+            pdraw.line(poly, fill="white", width=1)
 
     return img
 
@@ -97,6 +97,10 @@ if __name__ == '__main__':
                         help='how much the GT images will be down-sampled, defaults to 0.5.')
     parser.add_argument('--save_folder', default='', type=str,
                         help='path to the folder the GT is written to.')
+    parser.add_argument('--fixed_img_height', default=0, type=int,
+                        help='fix the height of the image to one specific value')
+    parser.add_argument('--use_max_rect_size', default=False, type=bool,
+                        help='whether to use a maximal article rectangle size or not')
     args = parser.parse_args()
 
     if args.path_to_xml_lst == '':
@@ -132,11 +136,6 @@ if __name__ == '__main__':
 
                 rotation_savefile_name = downscaled_grey_image_savefile_name + ".rot"
 
-                # create rotation files
-                # TODO: only generates files with '0's in it -> fix this
-                with open(rotation_savefile_name, "w") as rot:
-                    rot.write("0")
-
                 if os.path.isfile(article_gt_savefile_name) and os.path.isfile(baseline_gt_savefile_name) \
                         and os.path.isfile(other_gt_savefile_name) and os.path.isfile(
                     downscaled_grey_image_savefile_name) and os.path.isfile(rotation_savefile_name):
@@ -144,18 +143,29 @@ if __name__ == '__main__':
                         f"GT Files for PageXml {path_to_page_xml} already exist, skipping...")
                     continue
 
+                # create rotation files
+                # TODO: only generates files with '0's in it -> fix this
+                with open(rotation_savefile_name, "w") as rot:
+                    rot.write("0")
+
                 page = Page(path_to_page_xml)
 
                 # Get the article rectangles as a list of ArticleRectangle objects
-                ars, img_height, img_width = get_article_rectangles(page)
+                ars, img_height, img_width = get_article_rectangles(page, use_max_rect_size=args.use_max_rect_size)
 
-                # resize the image to draw the border polygons (if available)
-                img_height += 1
-                img_width += 1
+                # # resize the image to draw the border polygons (if available)
+                # img_height += 1
+                # img_width += 1
 
                 # get the width and height of the rescaled image and add 1 pixel to the borders
-                img_scaled_height = int(img_height * args.scaling_factor) + 1
-                img_scaled_width = int(img_width * args.scaling_factor) + 1
+                if args.fixed_img_height:
+                    sc_factor = args.fixed_img_height / img_height
+                else:
+                    sc_factor = args.scaling_factor
+
+                # OpenCV also uses Bankers rounding (cv2.resize)
+                img_scaled_height = round(img_height * sc_factor) + 1
+                img_scaled_width = round(img_width * sc_factor) + 1
 
                 # Convert the list of article rectangles to a dictionary with the article ids as keys
                 # and the corresponding list of rectangles as value
@@ -174,7 +184,7 @@ if __name__ == '__main__':
                     # rescale the surrounding polygons
                     surr_polys_scaled = []
                     for sp in surr_polys:
-                        surr_polys_scaled.append(rescale_points(sp, args.scaling_factor))
+                        surr_polys_scaled.append(rescale_points(sp, sc_factor))
 
                     # returns a pillow image
                     article_polygon_img = plot_polys_binary(surr_polys_scaled, article_polygon_img,
@@ -183,7 +193,7 @@ if __name__ == '__main__':
 
                     # Add the baselines to the baseline GT image
                     baseline_polygon_img = plot_polys_binary(
-                        [rescale_points(tl.baseline.points_list, args.scaling_factor) for ar in ars_sub for tl in
+                        [rescale_points(tl.baseline.points_list, sc_factor) for ar in ars_sub for tl in
                          ar.textlines],
                         baseline_polygon_img, img_height=img_scaled_height, img_width=img_scaled_width, closed=False)
 
@@ -192,7 +202,7 @@ if __name__ == '__main__':
                 ps_poly = Points(ps_coords).to_polygon()
                 ps_rectangle = ps_poly.get_bounding_box()
                 article_polygon_img = plot_polys_binary(
-                    [rescale_points(ps_rectangle.get_vertices(), args.scaling_factor)], article_polygon_img)
+                    [rescale_points(ps_rectangle.get_vertices(), sc_factor)], article_polygon_img)
 
                 # Comment out if you want to see the image with the corresponding regions before saving
                 # plot_gt_data(path_to_img, surr_polys_dict)
@@ -204,16 +214,16 @@ if __name__ == '__main__':
                     img_np = np.array(img_np, np.uint8)
 
                     if mode == 'article':
-                        img_np = apply_transform(img_np, transform_type='dilation', kernel_size=(20, 20),
+                        img_np = apply_transform(img_np, transform_type='dilation', kernel_size=(10, 10),
                                                  kernel_type='rect',
                                                  iterations=1)
-                        img_np = apply_transform(img_np, transform_type='erosion', kernel_size=(13, 13),
+                        img_np = apply_transform(img_np, transform_type='erosion', kernel_size=(5, 5),
                                                  kernel_type='rect',
                                                  iterations=1)
-                    # elif mode == 'baseline':
-                    #     img_np = apply_transform(img_np, transform_type='dilation', kernel_size=(1, 1),
-                    #                              kernel_type='rect',
-                    #                              iterations=1)
+                    elif mode == 'baseline':
+                        img_np = apply_transform(img_np, transform_type='dilation', kernel_size=(1, 3),
+                                                 kernel_type='rect',
+                                                 iterations=1)
 
                     return img_np
 
@@ -247,10 +257,10 @@ if __name__ == '__main__':
 
                 # save the grey image in the same resolution as the GT data
                 grey_img = Image.open(path_to_img).convert('L')
-                assert grey_img.size == (img_width - 1, img_height - 1), f"resolutions of images don't match but are" \
-                    f"{grey_img.size} and ({img_width - 1, img_height - 1})"
-                grey_img_np = cv2.resize(np.array(grey_img, np.uint8), None, fx=args.scaling_factor,
-                                         fy=args.scaling_factor, interpolation=cv2.INTER_AREA)
+                assert grey_img.size == (img_width, img_height), f"resolutions of images don't match but are" \
+                    f"{grey_img.size} and ({img_width, img_height})"
+                grey_img_np = cv2.resize(np.array(grey_img, np.uint8), None, fx=sc_factor, fy=sc_factor,
+                                         interpolation=cv2.INTER_AREA)
                 cv2.imwrite(downscaled_grey_image_savefile_name, grey_img_np)
                 print(f'Saved file {downscaled_grey_image_savefile_name}')
 

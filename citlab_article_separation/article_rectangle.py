@@ -73,7 +73,7 @@ class ArticleRectangle(Rectangle):
 
         return False
 
-    def create_subregions(self, ar_list=None, des_dist=5, max_d=50, min_rect_size=0):
+    def create_subregions(self, ar_list=None, des_dist=5, max_d=50, max_rect_size=0):
 
         # width1 equals width2 if width is even, else width2 = width1 + 1
         # same for height1 and height2
@@ -145,10 +145,10 @@ class ArticleRectangle(Rectangle):
         # run create_subregions on Rectangles that contain more than one TextLine object
         for a_rect in [a_rect1, a_rect2, a_rect3, a_rect4]:
             if len(a_rect.a_ids) > 1:
-                a_rect.create_subregions(ar_list, min_rect_size=min_rect_size)
+                a_rect.create_subregions(ar_list, max_rect_size=max_rect_size)
             # TODO: height or width?
-            elif 0 < min_rect_size < a_rect.height:
-                a_rect.create_subregions(ar_list, min_rect_size=min_rect_size)
+            elif 0 < max_rect_size < a_rect.height:
+                a_rect.create_subregions(ar_list, max_rect_size=max_rect_size)
             else:
                 ar_list.append(a_rect)
 
