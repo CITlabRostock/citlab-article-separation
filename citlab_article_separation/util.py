@@ -1,4 +1,5 @@
-from citlab_python_util.geometry.util import ortho_connect, smooth_surrounding_polygon
+from citlab_python_util.geometry.util import ortho_connect, smooth_surrounding_polygon, polygon_clip, \
+                                             convex_hull, bounding_box
 from citlab_python_util.parser.xml.page.page import Page
 from citlab_python_util.parser.xml.page.page_objects import Points
 
@@ -19,7 +20,7 @@ def get_article_surrounding_polygons(ar_dict):
     return asp_dict
 
 
-def smooth_article_surrounding_polygons(asp_dict, poly_norm_dist=10, or_dims=(400, 800, 600, 400)):
+def smooth_article_surrounding_polygons(asp_dict, poly_norm_dist=10, orientation_dims=(600, 300, 600, 300), offset=0):
     """
     Create smoothed polygons over "crooked" polygons, belonging to different article_ids.
 
@@ -31,9 +32,11 @@ def smooth_article_surrounding_polygons(asp_dict, poly_norm_dist=10, or_dims=(40
     (width_vertical, height_vertical, width_horizontal, height_horizontal), i.e. North and South rectangles
     have dimensions width_v x height_v, whereas East and West rectangles have dimensions width_h x height_h.
 
-    2.2) Each rectangle counts the number of contained points from the normalized polygon
+    2.2) The offset controls how far the cones overlap (e.g. how far the north cone gets translated south)
 
-    2.3) The top two rectangle counts determine the orientation of the vertex: vertical, horizontal or one
+    2.3) Each rectangle counts the number of contained points from the normalized polygon
+
+    2.4) The top two rectangle counts determine the orientation of the vertex: vertical, horizontal or one
     of the four possible corner types.
 
     3.) Vertices with a differing orientation to its agreeing neighbours are assumed to be mislabeled and
@@ -48,15 +51,85 @@ def smooth_article_surrounding_polygons(asp_dict, poly_norm_dist=10, or_dims=(40
 
     :param asp_dict: dict (keys = article_id, values = list of "crooked" polygons)
     :param poly_norm_dist: int, distance between pixels in normalized polygon
-    :param or_dims: tuple (width_v, height_v, width_h, height_h), the dimensions of the orientation rectangles
+    :param orientation_dims: tuple (width_v, height_v, width_h, height_h), the dimensions of the orientation rectangles
+    :param offset: int, number of pixel that the orientation cones overlap
     :return: dict (keys = article_id, values = smoothed polygons)
     """
     asp_dict_smoothed = {}
     for id in asp_dict:
         asp_dict_smoothed[id] = []
-        sp_smooth = smooth_surrounding_polygon(asp_dict[id], poly_norm_dist, or_dims)
-        asp_dict_smoothed[id].append(sp_smooth)
+        for poly in asp_dict[id]:
+            sp_smooth = smooth_surrounding_polygon(poly, poly_norm_dist, orientation_dims, offset)
+            asp_dict_smoothed[id].append(sp_smooth)
     return asp_dict_smoothed
+
+
+def convert_blank_article_rects_by_rects(ars_dict, method="bb"):
+    assert method == "bb" or method == "ch", "Only supports methods 'bb' (bounding boxes) and 'ch' (convex hulls)"
+    # Build up bounding boxes / convex hulls over rectangle vertices
+    poly_dict = {}
+    for key in ars_dict:
+        if key == "blank" or key is None:
+            continue
+        article_point_set = []
+        for ar in ars_dict[key]:
+            article_point_set += ar.get_vertices()
+        if method == "bb":
+            poly_dict[key] = bounding_box(article_point_set)
+        elif method == "ch":
+            poly_dict[key] = convex_hull(article_point_set)
+
+    out_dict = ars_dict.copy()
+    to_remove = []
+    # Go over blank rectangles and check for intersections with other articles
+    for ar in ars_dict["blank"]:
+        intersections = []
+        for key in poly_dict:
+            if polygon_clip(ar.get_vertices(), poly_dict[key]):
+                intersections.append(key)
+        # got exactly 1 intersection
+        if len(intersections) == 1:
+            # Convert rectangle to respective article id
+            out_dict[intersections[0]].append(ar)
+            to_remove.append(ar)
+    # Remove relevant rectangles from blanks
+    out_dict["blank"] = [ar for ar in ars_dict["blank"] if ar not in to_remove]
+    return out_dict
+
+
+def convert_blank_article_rects_by_polys(ars_dict, asp_dict, method="bb"):
+    assert method == "bb" or method == "ch", "Only supports methods 'bb' (bounding boxes) and 'ch' (convex hulls)"
+    # Build up bounding boxes / convex hulls over polygon vertices
+    poly_dict = {}
+    for key in asp_dict:
+        if key == "blank" or key is None:
+            continue
+        poly_dict[key] = []
+        for sp in asp_dict[key]:
+            if method == "bb":
+                poly_dict[key].append(bounding_box(sp.as_list()))
+            elif method == "ch":
+                poly_dict[key].append(convex_hull(sp.as_list()))
+
+    out_dict = ars_dict.copy()
+    to_remove = []
+    # Go over blank rectangles and check for intersections with other articles
+    for ar in ars_dict["blank"]:
+        intersections = []
+        for key in poly_dict:
+            for poly in poly_dict[key]:
+                if polygon_clip(ar.get_vertices(), poly):
+                    intersections.append(key)
+        # got exactly 1 intersection
+        print("AR: {}".format(ar.get_vertices()))
+        print("Intersections: {}".format(intersections))
+        if len(set(intersections)) == 1:
+            # Convert rectangle to respective article id
+            out_dict[intersections[0]].append(ar)
+            to_remove.append(ar)
+    # Remove relevant rectangles from blanks
+    out_dict["blank"] = [ar for ar in ars_dict["blank"] if ar not in to_remove]
+    return out_dict
 
 
 def get_article_rectangles(page, use_max_rect_size=True, max_d=0):

@@ -20,7 +20,7 @@ from matplotlib.collections import PolyCollection
 from citlab_article_separation.util import get_article_rectangles
 
 
-def plot_gt_data(img_path, surr_polys_dict):
+def plot_gt_data(img_path, surr_polys_dict, show=True):
     """ Plots the groundtruth data for the article separation network or saves it to the directory
 
     :param img_path: path to the image the groundtruth is produced for
@@ -45,7 +45,8 @@ def plot_gt_data(img_path, surr_polys_dict):
         ar_poly_collection.set_alpha(0.5)
         ax.add_collection(ar_poly_collection)
 
-    plt.show()
+    if show:
+        plt.show()
 
 
 def plot_polys_binary(polygon_list, img=None, img_width=None, img_height=None, closed=True):
