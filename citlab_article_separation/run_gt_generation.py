@@ -152,11 +152,8 @@ if __name__ == '__main__':
                 page = Page(path_to_page_xml)
 
                 # Get the article rectangles as a list of ArticleRectangle objects
-                ars, img_height, img_width = get_article_rectangles(page, use_max_rect_size=args.use_max_rect_size)
-
-                # # resize the image to draw the border polygons (if available)
-                # img_height += 1
-                # img_width += 1
+                ars, img_height, img_width = get_article_rectangles(page, use_max_rect_size=args.use_max_rect_size,
+                                                                    max_rect_size_scale=1/50)
 
                 # get the width and height of the rescaled image and add 1 pixel to the borders
                 if args.fixed_img_height:
@@ -185,7 +182,8 @@ if __name__ == '__main__':
                     # rescale the surrounding polygons
                     surr_polys_scaled = []
                     for sp in surr_polys:
-                        surr_polys_scaled.append(rescale_points(sp, sc_factor))
+                        sp_as_list = sp.as_list()
+                        surr_polys_scaled.append(rescale_points(sp_as_list, sc_factor))
 
                     # returns a pillow image
                     article_polygon_img = plot_polys_binary(surr_polys_scaled, article_polygon_img,

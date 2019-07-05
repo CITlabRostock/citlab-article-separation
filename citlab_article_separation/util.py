@@ -1,5 +1,5 @@
-from citlab_python_util.geometry.util import ortho_connect, smooth_surrounding_polygon, polygon_clip, \
-                                             convex_hull, bounding_box
+from citlab_python_util.geometry.util import ortho_connect, smooth_surrounding_polygon, polygon_clip, convex_hull, \
+    bounding_box
 from citlab_python_util.parser.xml.page.page import Page
 from citlab_python_util.parser.xml.page.page_objects import Points
 
@@ -132,7 +132,7 @@ def convert_blank_article_rects_by_polys(ars_dict, asp_dict, method="bb"):
     return out_dict
 
 
-def get_article_rectangles(page, use_max_rect_size=True, max_d=0):
+def get_article_rectangles(page, use_max_rect_size=True, max_d=0, max_rect_size_scale=1 / 50, max_d_scale=1 / 20):
     """Given the PageXml file `page` return the corresponding article subregions as a list of ArticleRectangle objects.
      Also returns the width and height of the image (NOT of the PrintSpace).
 
@@ -156,11 +156,11 @@ def get_article_rectangles(page, use_max_rect_size=True, max_d=0):
                                     page.get_textlines())
 
     if use_max_rect_size:
-        max_rect_size = int(1 / 20 * ps_rectangle.height)
+        max_rect_size = int(max_rect_size_scale * ps_rectangle.height)
     else:
         max_rect_size = 0
     if not max_d:
-        max_d = int(1 / 20 * ps_rectangle.height)
+        max_d = int(max_d_scale * ps_rectangle.height)
 
     ars = ps_rectangle.create_subregions(max_d=max_d, max_rect_size=max_rect_size)
 
