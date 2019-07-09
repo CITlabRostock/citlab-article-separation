@@ -4,9 +4,9 @@ import jpype
 
 from citlab_python_util.parser.xml.page.page import Page
 from citlab_python_util.basic.list_util import filter_by_attribute
-from citlab_article_separation.util import get_article_rectangles, smooth_article_surrounding_polygons, \
-                                           convert_blank_article_rects_by_rects, \
-                                           convert_blank_article_rects_by_polys
+from citlab_article_separation.util import get_article_rectangles_from_surr_polygons, smooth_article_surrounding_polygons, \
+    convert_blank_article_rects_by_rects, \
+    convert_blank_article_rects_by_polys
 from citlab_python_util.geometry.rectangle import Rectangle
 from citlab_python_util.geometry.util import ortho_connect, convex_hull, bounding_box
 from citlab_python_util.parser.xml.page import plot as page_plot
@@ -48,10 +48,15 @@ def plot_gt_data(img_path, poly_dict, poly_smooth_dict, show=True):
 
 if __name__ == '__main__':
     jpype.startJVM(jpype.getDefaultJVMPath())
-    path_to_page_xml = "/home/johannes/devel/projects/as/ArticleSeparationMeasure/test/resources/" \
-                       "newseye_as_test_data/xml_files_gt/19000715_1-0003.xml"
-    path_to_img = "/home/johannes/devel/projects/as/ArticleSeparationMeasure/test/resources/" \
-                  "newseye_as_test_data/image_files/19000715_1-0003.jpg"
+    # path_to_page_xml = "/home/johannes/devel/projects/as/ArticleSeparationMeasure/test/resources/" \
+    #                    "newseye_as_test_data/xml_files_gt/19000715_1-0003.xml"
+    # path_to_img = "/home/johannes/devel/projects/as/ArticleSeparationMeasure/test/resources/" \
+    #               "newseye_as_test_data/image_files/19000715_1-0003.jpg"
+
+    path_to_page_xml = '/home/max/devel/projects/article_separation/data/newseye_onb/aze/ONB_aze_18950706_corrected/' \
+                       'page/ONB_aze_18950706_5.xml'
+    path_to_img = '/home/max/devel/projects/article_separation/data/newseye_onb/aze/ONB_aze_18950706_corrected/' \
+                  'ONB_aze_18950706_5.jpg'
 
     # path_to_page_xml = "/home/johannes/devel/projects/as/ArticleSeparationMeasure/test/resources/" \
     #                    "newseye_as_test_data/xml_files_gt/19420115_1-0002.xml"
@@ -62,7 +67,7 @@ if __name__ == '__main__':
     page = Page(path_to_page_xml)
 
     # Get the article rectangles as a list of ArticleRectangle objects
-    ars, img_height, img_width = get_article_rectangles(page)
+    ars, img_height, img_width = get_article_rectangles_from_surr_polygons(page)
 
     # resize the image to draw the border polygons (if available)
     img_height += 1

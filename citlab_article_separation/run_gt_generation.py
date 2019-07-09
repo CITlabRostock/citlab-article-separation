@@ -17,7 +17,7 @@ from citlab_python_util.parser.xml.page.page import Page, Points
 from citlab_python_util.plot import colors
 from matplotlib.collections import PolyCollection
 
-from citlab_article_separation.util import get_article_rectangles
+from citlab_article_separation.util import get_article_rectangles_from_surr_polygons
 
 
 def plot_gt_data(img_path, surr_polys_dict, show=True):
@@ -152,8 +152,8 @@ if __name__ == '__main__':
                 page = Page(path_to_page_xml)
 
                 # Get the article rectangles as a list of ArticleRectangle objects
-                ars, img_height, img_width = get_article_rectangles(page, use_max_rect_size=args.use_max_rect_size,
-                                                                    max_rect_size_scale=1/50)
+                ars, img_height, img_width = get_article_rectangles_from_surr_polygons(page, use_max_rect_size=args.use_max_rect_size,
+                                                                                       max_rect_size_scale=1/50)
 
                 # get the width and height of the rescaled image and add 1 pixel to the borders
                 if args.fixed_img_height:
