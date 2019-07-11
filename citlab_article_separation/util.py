@@ -1,7 +1,10 @@
+import copy
 from collections import defaultdict
 
+from citlab_python_util.geometry.rectangle import Rectangle
 from citlab_python_util.geometry.util import ortho_connect, smooth_surrounding_polygon, polygon_clip, convex_hull, \
     bounding_box, merge_rectangles
+from citlab_python_util.image_processing.white_space_detection import get_binarization, is_whitespace
 from citlab_python_util.parser.xml.page.page import Page
 from citlab_python_util.parser.xml.page.page_objects import Points
 
@@ -156,8 +159,31 @@ def sort_textlines_by_y(textlines):
     return sorted(textlines, key=lambda textline: min(textline.baseline.points_list, key=lambda point: point[1])[1])
 
 
+def stretch_rectangle_until_whitespace(binarized_image, rectangle, whitespace_height=1, stretch_limit=250):
+    """
+
+    :type rectangle: Rectangle
+    """
+    new_rectangle = copy.deepcopy(rectangle)
+    # whitespace_rectangle = Rectangle(x=rectangle.x, y=rectangle.y - whitespace_height, width=rectangle.width,
+    #                                  height=whitespace_height)
+    whitespace_rectangle = Rectangle(x=rectangle.x + rectangle.width // 5, y=rectangle.y - whitespace_height,
+                                     width=3 * rectangle.width // 5,
+                                     height=whitespace_height)
+
+    for i in range(stretch_limit):
+        if is_whitespace(binarized_image, whitespace_rectangle, threshold=0.04):
+            new_rectangle.set_bounds(rectangle.x, whitespace_rectangle.y, rectangle.width,
+                                     rectangle.height + i + 1)
+            break
+        else:
+            whitespace_rectangle.translate(0, -1)
+
+    return new_rectangle
+
+
 # TODO: Optimize code
-def get_article_rectangles_from_baselines(page):
+def get_article_rectangles_from_baselines(page, image_path, stretch=False, use_surr_polygons=True):
     if type(page) == str:
         page = Page(page)
 
@@ -165,6 +191,9 @@ def get_article_rectangles_from_baselines(page):
     article_dict = page.get_article_dict()
 
     article_rectangles_dict = defaultdict(list)
+
+    if stretch:
+        binarized_image = get_binarization(image_path)
 
     for article_id, textlines in article_dict.items():
         used_textline_ids = []
@@ -177,11 +206,31 @@ def get_article_rectangles_from_baselines(page):
 
             baseline = textline.baseline.points_list
             baseline_polygon = textline.baseline.to_polygon()
-            # baseline_bounding_box = baseline_polygon.get_bounding_box()
-            baseline_bounding_box = textline.surr_p.to_polygon().get_bounding_box() if textline.surr_p else baseline_polygon.get_bounding_box()
+
+            if use_surr_polygons:
+                baseline_bounding_box = textline.surr_p.to_polygon().get_bounding_box() if textline.surr_p else baseline_polygon.get_bounding_box()
+            else:
+                baseline_bounding_box = baseline_polygon.get_bounding_box()
+
+            # [ar for aid, ar in article_rectangles_dict.items() if aid != article_id]
+
+            # print(baseline_bounding_box.get_vertices())
+            # print(article_id)
+            for ars in [ar for aid, ar in article_rectangles_dict.items() if aid != article_id]:
+                for ar in ars:
+                    intersection = ar.intersection(baseline_bounding_box)
+                    for _ in range(20):
+                        if intersection.width > 0 and intersection.height > 0:
+                            baseline_bounding_box.translate(0, 1)
+                            baseline_bounding_box.height -= 1
+                            intersection = ar.intersection(baseline_bounding_box)
+                        else:
+                            break
+
             article_rectangle = ArticleRectangle(baseline_bounding_box.x, baseline_bounding_box.y,
                                                  baseline_bounding_box.width, baseline_bounding_box.height,
                                                  [textline], None)
+
             used_textline_ids.append(textline.id)
             if i == len(sorted_textlines):
                 continue
@@ -193,7 +242,7 @@ def get_article_rectangles_from_baselines(page):
                 baseline_compare = textline_compare.baseline.points_list
                 skip = False
 
-                # instead of checking whether the two baselines are aligned, wie should check, if the current article
+                # instead of checking whether the two baselines are aligned, we should check, if the current article
                 # rectangle and the baseline_compare are aligned!
                 article_rectangle_horizontal_poly = article_rectangle.get_vertices()[:2]
 
@@ -214,8 +263,11 @@ def get_article_rectangles_from_baselines(page):
                     continue
 
                 baseline_compare_polygon = textline_compare.baseline.to_polygon()
-                # baseline_compare_bounding_box = baseline_compare_polygon.get_bounding_box()
-                baseline_compare_bounding_box = textline_compare.surr_p.to_polygon().get_bounding_box() if textline_compare.surr_p else baseline_compare_polygon.get_bounding_box()
+                if use_surr_polygons:
+                    baseline_compare_bounding_box = textline_compare.surr_p.to_polygon().get_bounding_box() if textline_compare.surr_p else baseline_compare_polygon.get_bounding_box()
+                else:
+                    baseline_compare_bounding_box = baseline_compare_polygon.get_bounding_box()
+
                 merged_rectangle = merge_rectangles([article_rectangle, baseline_compare_bounding_box])
 
                 skip = False
@@ -233,11 +285,14 @@ def get_article_rectangles_from_baselines(page):
                 merged_article_rectangle = ArticleRectangle(merged_rectangle.x, merged_rectangle.y,
                                                             merged_rectangle.width, merged_rectangle.height)
                 # if merged_article_rectangle contains any other baseline, that is not yet in an article_rectangle, skip
-                textlines_to_check_intersection = [tl for tl in sorted_textlines if
-                                                   tl.id not in used_textline_ids and tl.id != textline_compare.id]
+                # textlines_to_check_intersection = [tl for tl in sorted_textlines if
+                #                                    tl.id not in used_textline_ids and tl.id != textline_compare.id]
+                textlines_to_check_intersection = []
                 textlines_to_check_intersection += [tl for textlines in
                                                     [article_dict[aid] for aid in article_dict if
                                                      aid != article_id] for tl in textlines]
+                # polygons_to_check_intersection = [tl.surr_p.to_polygon() if tl.surr_p is not None else
+                #                                   tl.baseline.to_polygon() for tl in textlines_to_check_intersection]
                 polygons_to_check_intersection = [tl.baseline.to_polygon() for tl in textlines_to_check_intersection]
 
                 skip = False
@@ -247,26 +302,96 @@ def get_article_rectangles_from_baselines(page):
                                                                  merged_article_rectangle.width,
                                                                  merged_article_rectangle.height):
                         skip = True
+
+                        merged_article_rectangle_copy = copy.deepcopy(merged_article_rectangle)
+                        for _ in range(50):
+                            merged_article_rectangle_copy.translate(0, 1)
+                            merged_article_rectangle_copy.height -= 1
+                            if not merged_article_rectangle_copy.contains_polygon(polygon,
+                                                                                  merged_article_rectangle_copy.x,
+                                                                                  merged_article_rectangle_copy.y,
+                                                                                  merged_article_rectangle_copy.width,
+                                                                                  merged_article_rectangle_copy.height):
+                                skip = False
+                            merged_article_rectangle = merged_article_rectangle_copy
+                            break
+
+                    if skip:
                         break
 
                 if skip:
                     continue
 
                 article_rectangle.textlines.append(textline_compare)
-                article_rectangle.set_bounds(merged_rectangle.x, merged_rectangle.y, merged_rectangle.width,
-                                             merged_rectangle.height)
+                article_rectangle.set_bounds(merged_article_rectangle.x, merged_article_rectangle.y,
+                                             merged_article_rectangle.width, merged_article_rectangle.height)
                 used_textline_ids.append(textline_compare.id)
 
             if len(article_rectangle.textlines) == 1:
                 if article_rectangle.textlines[0].surr_p:
-                    bb = article_rectangle.textlines[0].surr_p.to_polygon().get_bounding_box()
-                    article_rectangle.set_bounds(bb.x, bb.y, bb.width, bb.height)
+                    # bb = article_rectangle.textlines[0].surr_p.to_polygon().get_bounding_box()
+                    # article_rectangle.set_bounds(bb.x, bb.y, bb.width, bb.height)
+                    pass
                 else:
                     article_rectangle.translate(0, -10)
                     article_rectangle.height = 10
+
+            if stretch:
+                img_height = len(binarized_image)
+                article_rectangle = stretch_rectangle_until_whitespace(binarized_image, article_rectangle,
+                                                                       whitespace_height=img_height//1000,
+                                                                       stretch_limit=img_height//10)
+
             article_rectangles_dict[article_id].append(article_rectangle)
 
     return article_rectangles_dict
+
+
+# def extract_polys_from_article_rectangle_dict(article_rectangles_dict):
+#     """
+#
+#     :param article_rectangles_dict:
+#     :type article_rectangles_dict: dict[str,list[ArticleRectangle]]
+#     :return:
+#     """
+#
+#     for aid, article_rectangles in article_rectangles_dict.items():
+#         temporary_added_rectangles = []
+#         for i, article_rectangle in enumerate(article_rectangles):
+#             if i + 1 == len(article_rectangles):
+#                 break
+#             for article_rectangle_compare in article_rectangles[i + 1:]:
+#                 intersection = article_rectangle.intersection(article_rectangle_compare)
+#                 if intersection.width < 0 and intersection.height < 0:
+#                     rectangles_surr_poly = list_to_polygon_object(article_rectangle.get_vertices())
+#                 elif intersection.width > 0 and intersection.height > 0:
+#                     rectangles_surr_poly = ortho_connect([article_rectangle, article_rectangle_compare])
+#                 elif intersection.width > 0 and intersection.height < 0:
+#                     if not intersects_with_other_article_rectangle and is_whitespace_area:
+#                         rectangles_surr_poly = ortho_connect([article_rectangle, article_rectangle_compare])
+#                         if article_rectangle.y < article_rectangle_compare.y:
+#                             new_y = article_rectangle.y + article_rectangle.height
+#                         else:
+#                             new_y = article_rectangle_compare.y + article_rectangle_compare.height
+#
+#                         temporary_added_rectangles.append(ArticleRectangle(intersection.x, new_y, intersection.width,
+#                                                                            abs(intersection.height)))
+#                     else:
+#                         rectangles_surr_poly = list_to_polygon_object(article_rectangle.get_vertices())
+#                 elif intersection.width < 0 and intersection.height > 0:
+#                     if not intersects_with_other_article_rectangle and is_whitespace_area:
+#                         rectangles_surr_poly = ortho_connect([article_rectangle, article_rectangle_compare])
+#                         if article_rectangle.x < article_rectangle_compare.x:
+#                             new_x = article_rectangle.x + article_rectangle.width
+#                         else:
+#                             new_x = article_rectangle_compare.x + article_rectangle_compare.width
+#
+#                         temporary_added_rectangles.append(ArticleRectangle(new_x, intersection.y,
+#                                                                            abs(intersection.width),
+#                                                                            intersection.height))
+#
+#                     else:
+#                         rectangles_surr_poly = list_to_polygon_object(article_rectangle.get_vertices())
 
 
 def get_article_rectangles_from_surr_polygons(page, use_max_rect_size=True, max_d=0, max_rect_size_scale=1 / 50,
@@ -310,19 +435,27 @@ def get_article_rectangles_from_surr_polygons(page, use_max_rect_size=True, max_
 
 
 if __name__ == '__main__':
-    # xml_path = "/home/max/data/as/NewsEye_ONB_data_corrected/aze/ONB_aze_18950706_corrected/page/ONB_aze_18950706_5.xml"
-    # img_path = "/home/max/data/as/NewsEye_ONB_data_corrected/aze/ONB_aze_18950706_corrected/ONB_aze_18950706_5.jpg"
-    xml_path = "/home/max/data/as/NewsEye_ONB_data_corrected/krz/ONB_krz_19110701_corrected/page/ONB_krz_19110701_007.xml"
-    img_path = "/home/max/data/as/NewsEye_ONB_data_corrected/krz/ONB_krz_19110701_corrected/ONB_krz_19110701_007.jpg"
+    xml_path = "/home/max/data/as/NewsEye_ONB_data_corrected/aze/ONB_aze_18950706_corrected/page/ONB_aze_18950706_3.xml"
+    img_path = "/home/max/data/as/NewsEye_ONB_data_corrected/aze/ONB_aze_18950706_corrected/ONB_aze_18950706_3.jpg"
+    # xml_path = "/home/max/data/as/NewsEye_ONB_data_corrected/krz/ONB_krz_19110701_corrected/page/ONB_krz_19110701_016.xml"
+    # img_path = "/home/max/data/as/NewsEye_ONB_data_corrected/krz/ONB_krz_19110701_corrected/ONB_krz_19110701_016" \
+    #            ".jpg"
+    # #
+    # xml_path = "/home/max/data/as/NewsEye_ONB_data_corrected/ibn/ONB_ibn_19330701_corrected/page/ONB_ibn_19330701_001.xml"
+    # img_path = "/home/max/data/as/NewsEye_ONB_data_corrected/ibn/ONB_ibn_19330701_corrected/ONB_ibn_19330701_001.jpg"
+    # #
+    # xml_path = "/home/max/data/as/NewsEye_ONB_data_corrected/nfp/ONB_nfp_18730705_corrected/page/ONB_nfp_18730705_014.xml"
+    # img_path = "/home/max/data/as/NewsEye_ONB_data_corrected/nfp/ONB_nfp_18730705_corrected/ONB_nfp_18730705_014.tif"
 
-    article_rectangles_dict = get_article_rectangles_from_baselines(Page(xml_path))
+    article_rectangles_dict = get_article_rectangles_from_baselines(Page(xml_path), img_path, use_surr_polygons=True,
+                                                                    stretch=False)
 
     import matplotlib.pyplot as plt
     from citlab_python_util.parser.xml.page import plot as page_plot
     from matplotlib.collections import PolyCollection
     from citlab_python_util.plot import colors
 
-    page_plot.plot_pagexml(xml_path, img_path)
+    # page_plot.plot_pagexml(xml_path, img_path)
 
     fig, ax = plt.subplots()
     page_plot.add_image(ax, img_path)
