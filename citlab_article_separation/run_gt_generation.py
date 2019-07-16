@@ -17,7 +17,8 @@ from citlab_python_util.parser.xml.page.page import Page, Points
 from citlab_python_util.plot import colors
 from matplotlib.collections import PolyCollection
 
-from citlab_article_separation.util import get_article_rectangles_from_surr_polygons
+from citlab_article_separation.util import get_article_rectangles_from_surr_polygons, \
+    get_article_rectangles_from_baselines, merge_article_rectangles_vertically
 
 
 def plot_gt_data(img_path, surr_polys_dict, show=True):
@@ -102,6 +103,15 @@ if __name__ == '__main__':
                         help='fix the height of the image to one specific value')
     parser.add_argument('--use_max_rect_size', default=False, type=bool,
                         help='whether to use a maximal article rectangle size or not')
+    parser.add_argument('--use_surr_polys', default=False, type=bool,
+                        help='whether to use the surrounding polygons of the baselines or not.')
+    parser.add_argument('--use_stretch', default=True, type=bool,
+                        help='whether to stretch the article rectangles to the top or not. Should be used if '
+                             '"--use_surr_polys" is False.')
+    parser.add_argument('--min_width_intersect', default=10, type=int,
+                        help='How much two article rectangles at least have to overlap '
+                             'horizontally to connect them to one article rectangle in a postprocessing step.')
+
     args = parser.parse_args()
 
     if args.path_to_xml_lst == '':
@@ -151,9 +161,11 @@ if __name__ == '__main__':
 
                 page = Page(path_to_page_xml)
 
-                # Get the article rectangles as a list of ArticleRectangle objects
-                ars, img_height, img_width = get_article_rectangles_from_surr_polygons(page, use_max_rect_size=args.use_max_rect_size,
-                                                                                       max_rect_size_scale=1/50)
+                img_width, img_height = page.get_image_resolution()
+
+                article_rectangle_dict = get_article_rectangles_from_baselines(page, path_to_img,
+                                                                               use_surr_polygons=args.use_surr_polys,
+                                                                               stretch=args.use_stretch)
 
                 # get the width and height of the rescaled image and add 1 pixel to the borders
                 if args.fixed_img_height:
@@ -165,20 +177,24 @@ if __name__ == '__main__':
                 img_scaled_height = round(img_height * sc_factor) + 1
                 img_scaled_width = round(img_width * sc_factor) + 1
 
-                # Convert the list of article rectangles to a dictionary with the article ids as keys
-                # and the corresponding list of rectangles as value
-                ars_dict = filter_by_attribute(ars, "a_ids")
-
                 # Convert the article rectangles to surrounding polygons
-                surr_polys_dict = defaultdict(list)
-                article_polygon_img = None
-                baseline_polygon_img = None
-                for a_id, ars_sub in ars_dict.items():
-                    if a_id == 'blank':
-                        continue
-                    rs = [Rectangle(ar.x, ar.y, ar.width, ar.height) for ar in ars_sub]
-                    surr_polys = ortho_connect(rs)
+                surr_polys_dict = merge_article_rectangles_vertically(article_rectangle_dict,
+                                                                      min_width_intersect=args.min_width_intersect)
 
+                # Create Baseline GT image
+                baseline_polygon_img = None
+                for aid, ars in article_rectangle_dict.items():
+                    baseline_polygon_img = plot_polys_binary(
+                        [rescale_points(tl.baseline.points_list, sc_factor) for ar in ars for tl in
+                         ar.textlines],
+                        baseline_polygon_img, img_height=img_scaled_height, img_width=img_scaled_width, closed=False)
+
+                # Create Article Boundary GT image
+                article_polygon_img = None
+                surr_polys_scaled_dict = defaultdict(list)
+                for aid, surr_polys in surr_polys_dict.items():
+                    if aid is None:
+                        continue
                     # rescale the surrounding polygons
                     surr_polys_scaled = []
                     for sp in surr_polys:
@@ -187,24 +203,13 @@ if __name__ == '__main__':
 
                     # returns a pillow image
                     article_polygon_img = plot_polys_binary(surr_polys_scaled, article_polygon_img,
-                                                            img_height=img_scaled_height, img_width=img_scaled_width)
-                    surr_polys_dict[a_id] = surr_polys_scaled
-
-                    # Add the baselines to the baseline GT image
-                    baseline_polygon_img = plot_polys_binary(
-                        [rescale_points(tl.baseline.points_list, sc_factor) for ar in ars_sub for tl in
-                         ar.textlines],
-                        baseline_polygon_img, img_height=img_scaled_height, img_width=img_scaled_width, closed=False)
-
-                # Also add the printspace to the GT data
-                ps_coords = page.get_print_space_coords()
-                ps_poly = Points(ps_coords).to_polygon()
-                ps_rectangle = ps_poly.get_bounding_box()
-                article_polygon_img = plot_polys_binary(
-                    [rescale_points(ps_rectangle.get_vertices(), sc_factor)], article_polygon_img)
+                                                            img_height=img_scaled_height,
+                                                            img_width=img_scaled_width)
+                    surr_polys_scaled_dict[aid] = surr_polys_scaled
 
                 # Comment out if you want to see the image with the corresponding regions before saving
-                # plot_gt_data(path_to_img, surr_polys_dict)
+                # page_plot.plot_pagexml(page, path_to_img)
+                plot_gt_data(path_to_img, surr_polys_scaled_dict)
 
                 # convert pillow image to numpy array to use it in opencv
                 def convert_and_apply_dilation(img, mode='article'):
