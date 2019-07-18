@@ -1,24 +1,21 @@
 import os
-from argparse import ArgumentParser
+import sys
+from argparse import ArgumentParser,ArgumentTypeError
 from collections import defaultdict
 
 import cv2
 import jpype
+import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image, ImageDraw
-import matplotlib.pyplot as plt
-from citlab_python_util.basic.list_util import filter_by_attribute
 from citlab_python_util.geometry.point import rescale_points
-from citlab_python_util.geometry.rectangle import Rectangle
-from citlab_python_util.geometry.util import ortho_connect
 from citlab_python_util.image_processing.morphology import apply_transform
 from citlab_python_util.parser.xml.page import plot as page_plot
-from citlab_python_util.parser.xml.page.page import Page, Points
+from citlab_python_util.parser.xml.page.page import Page
 from citlab_python_util.plot import colors
 from matplotlib.collections import PolyCollection
 
-from citlab_article_separation.util import get_article_rectangles_from_surr_polygons, \
-    get_article_rectangles_from_baselines, merge_article_rectangles_vertically
+from citlab_article_separation.util import get_article_rectangles_from_baselines, merge_article_rectangles_vertically
 
 
 def plot_gt_data(img_path, surr_polys_dict, show=True):
@@ -88,6 +85,17 @@ def rescale_image(img=None):
     pass
 
 
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise ArgumentTypeError('Boolean value expected.')
+
+
 if __name__ == '__main__':
     jpype.startJVM(jpype.getDefaultJVMPath())
     parser = ArgumentParser()
@@ -95,19 +103,21 @@ if __name__ == '__main__':
                         help="path to the lst file containing the file paths of the PageXMLs.")
     parser.add_argument('--path_to_img_lst', default='', type=str,
                         help='path to the lst file containing the file paths of the images.')
-    parser.add_argument('--scaling_factor', default=0.5, type=int,
+    parser.add_argument('--scaling_factor', default=0.5, type=float,
                         help='how much the GT images will be down-sampled, defaults to 0.5.')
     parser.add_argument('--save_folder', default='', type=str,
                         help='path to the folder the GT is written to.')
     parser.add_argument('--fixed_img_height', default=0, type=int,
                         help='fix the height of the image to one specific value')
-    parser.add_argument('--use_max_rect_size', default=False, type=bool,
-                        help='whether to use a maximal article rectangle size or not')
-    parser.add_argument('--use_surr_polys', default=False, type=bool,
+    parser.add_argument('--use_surr_polys', type=str2bool, nargs='?', const=True, default=False,
                         help='whether to use the surrounding polygons of the baselines or not.')
-    parser.add_argument('--use_stretch', default=True, type=bool,
+    parser.add_argument('--use_stretch', type=str2bool, nargs='?', const=True, default=True,
                         help='whether to stretch the article rectangles to the top or not. Should be used if '
                              '"--use_surr_polys" is False.')
+    parser.add_argument('--use_convex_hull', type=str2bool, nargs='?', const=True, default=False,
+                        help='whether to use the convex hull when merging article rectangles or ortho connect.')
+    parser.add_argument('--use_max_rect_size', type=str2bool, nargs='?', const=True, default=False,
+                        help='whether to use a maximal article rectangle size or not.')
     parser.add_argument('--min_width_intersect', default=10, type=int,
                         help='How much two article rectangles at least have to overlap '
                              'horizontally to connect them to one article rectangle in a postprocessing step.')
@@ -179,7 +189,8 @@ if __name__ == '__main__':
 
                 # Convert the article rectangles to surrounding polygons
                 surr_polys_dict = merge_article_rectangles_vertically(article_rectangle_dict,
-                                                                      min_width_intersect=args.min_width_intersect)
+                                                                      min_width_intersect=args.min_width_intersect,
+                                                                      use_convex_hull=args.use_convex_hull)
 
                 # Create Baseline GT image
                 baseline_polygon_img = None
@@ -208,8 +219,8 @@ if __name__ == '__main__':
                     surr_polys_scaled_dict[aid] = surr_polys_scaled
 
                 # Comment out if you want to see the image with the corresponding regions before saving
-                # page_plot.plot_pagexml(page, path_to_img)
-                plot_gt_data(path_to_img, surr_polys_scaled_dict)
+                page_plot.plot_pagexml(page, path_to_img)
+                plot_gt_data(path_to_img, {aid: [poly.as_list() for poly in poly_list] for aid, poly_list in surr_polys_dict.items() if aid is not None})
 
                 # convert pillow image to numpy array to use it in opencv
                 def convert_and_apply_dilation(img, mode='article'):

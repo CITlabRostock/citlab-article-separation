@@ -7,6 +7,7 @@ from citlab_python_util.geometry.util import ortho_connect, smooth_surrounding_p
     bounding_box, merge_rectangles
 from citlab_python_util.image_processing.white_space_detection import get_binarization, is_whitespace
 from citlab_python_util.parser.xml.page.page import Page
+from citlab_python_util.parser.xml.page.page_objects import Points
 
 from citlab_article_separation.article_rectangle import ArticleRectangle
 
@@ -171,10 +172,11 @@ def stretch_rectangle_until_whitespace(binarized_image, rectangle, whitespace_he
                                      width=3 * rectangle.width // 5,
                                      height=whitespace_height)
 
+    if whitespace_rectangle.y < 0 or whitespace_rectangle.y + whitespace_rectangle.height > binarized_image.shape[1]:
+        return new_rectangle
+
     for i in range(stretch_limit):
-        if whitespace_rectangle.y < 0 or whitespace_rectangle.y + whitespace_rectangle.height > binarized_image.shape[1]:
-            break
-        if is_whitespace(binarized_image, whitespace_rectangle, threshold=0.04):
+        if is_whitespace(binarized_image, whitespace_rectangle, threshold=0.04) or whitespace_rectangle.y == 0:
             new_rectangle.set_bounds(rectangle.x, whitespace_rectangle.y, rectangle.width,
                                      rectangle.height + i + 1)
             break
@@ -341,7 +343,7 @@ def get_article_rectangles_from_baselines(page, image_path, stretch=False, use_s
             if stretch:
                 img_height = len(binarized_image)
                 article_rectangle = stretch_rectangle_until_whitespace(binarized_image, article_rectangle,
-                                                                       whitespace_height=img_height // 1000,
+                                                                       whitespace_height=max(1, img_height // 1000),
                                                                        stretch_limit=img_height // 10)
 
             article_rectangles_dict[article_id].append(article_rectangle)
@@ -349,7 +351,7 @@ def get_article_rectangles_from_baselines(page, image_path, stretch=False, use_s
     return article_rectangles_dict
 
 
-def merge_article_rectangles_vertically(article_rectangles_dict, min_width_intersect=20, max_vertical_distance=50):
+def merge_article_rectangles_vertically(article_rectangles_dict, min_width_intersect=20, max_vertical_distance=50, use_convex_hull=False):
     """
 
     :type article_rectangles_dict: dict[str,list[ArticleRectangle]]
@@ -384,6 +386,7 @@ def merge_article_rectangles_vertically(article_rectangles_dict, min_width_inter
                 if intersection.width > min_width_intersect and intersection.height > 0:
                     # TODO: Check intersection with other rectangle of same aid?
                     merged_articles.append(article_rectangle_compare)
+                    merged_articles.append(intersection)
 
                 if intersection.width > min_width_intersect and intersection.height < 0:
                     if abs(intersection.height) < max_vertical_distance:
@@ -398,14 +401,20 @@ def merge_article_rectangles_vertically(article_rectangles_dict, min_width_inter
                         if skip:
                             continue
                         merged_articles.append(article_rectangle_compare)
+                        merged_articles.append(gap)
 
             merged_articles_list.append(merged_articles)
-
-        for _ars in merged_articles_list:
-            article_convex_hull = convex_hull(
-                [vertex for vertices in [_ar.get_vertices() for _ar in _ars] for vertex in vertices])
-            article_convex_hull_polygon = list_to_polygon_object(article_convex_hull)
-            surr_polygon_dict[aid].append(article_convex_hull_polygon)
+        if use_convex_hull:
+            for _ars in merged_articles_list:
+                article_convex_hull = convex_hull(
+                    [vertex for vertices in [_ar.get_vertices() for _ar in _ars] for vertex in vertices])
+                article_convex_hull_polygon = list_to_polygon_object(article_convex_hull)
+                surr_polygon_dict[aid].append(article_convex_hull_polygon)
+        else:
+            for _ars in merged_articles_list:
+                article_ortho_connect_polygon = ortho_connect(_ars)
+                for ortho_connect_polygon in article_ortho_connect_polygon:
+                    surr_polygon_dict[aid].append(ortho_connect_polygon)
 
     return surr_polygon_dict
 
@@ -451,12 +460,15 @@ def get_article_rectangles_from_surr_polygons(page, use_max_rect_size=True, max_
 
 
 if __name__ == '__main__':
-    xml_path = "/home/max/data/as/NewsEye_ONB_data_corrected/aze/ONB_aze_18950706_corrected/page/ONB_aze_18950706_4.xml"
-    img_path = "/home/max/data/as/NewsEye_ONB_data_corrected/aze/ONB_aze_18950706_corrected/ONB_aze_18950706_4.jpg"
+    # xml_path = "/home/max/data/as/NewsEye_ONB_data_corrected/aze/ONB_aze_18950706_corrected/page/ONB_aze_18950706_4.xml"
+    # img_path = "/home/max/data/as/NewsEye_ONB_data_corrected/aze/ONB_aze_18950706_corrected/ONB_aze_18950706_4.jpg"
     # xml_path = "/home/max/data/as/NewsEye_ONB_data_corrected/krz/ONB_krz_19110701_corrected/page/ONB_krz_19110701_016.xml"
     # img_path = "/home/max/data/as/NewsEye_ONB_data_corrected/krz/ONB_krz_19110701_corrected/ONB_krz_19110701_016" \
     #            ".jpg"
     # #
+    img_path = "/home/max/devel/projects/article_separation/data/newseye_onb/ibn/ONB_ibn_18640702_corrected/ONB_ibn_18640702_003.tif"
+    xml_path = "/home/max/devel/projects/article_separation/data/newseye_onb/ibn/ONB_ibn_18640702_corrected/page/ONB_ibn_18640702_003.xml"
+
     # xml_path = "/home/max/data/as/NewsEye_ONB_data_corrected/ibn/ONB_ibn_19330701_corrected/page/ONB_ibn_19330701_001.xml"
     # img_path = "/home/max/data/as/NewsEye_ONB_data_corrected/ibn/ONB_ibn_19330701_corrected/ONB_ibn_19330701_001.jpg"
     # # #
@@ -466,8 +478,8 @@ if __name__ == '__main__':
     # xml_path = '/home/max/data/as/NewsEye_ONB_data_corrected/nfp/ONB_nfp_18950706_corrected/page/ONB_nfp_18950706_015.xml'
     # img_path = '/home/max/data/as/NewsEye_ONB_data_corrected/nfp/ONB_nfp_18950706_corrected/ONB_nfp_18950706_015.tif'
 
-    article_rectangles_dict = get_article_rectangles_from_baselines(Page(xml_path), img_path, use_surr_polygons=False,
-                                                                    stretch=True)
+    article_rectangles_dict = get_article_rectangles_from_baselines(Page(xml_path), img_path, use_surr_polygons=True,
+                                                                    stretch=False)
 
     surr_polys_dict = merge_article_rectangles_vertically(article_rectangles_dict)
 
