@@ -1,7 +1,5 @@
 import os
-import sys
-from argparse import ArgumentParser,ArgumentTypeError
-from collections import defaultdict
+from argparse import ArgumentParser, ArgumentTypeError
 
 import cv2
 import jpype
@@ -87,13 +85,122 @@ def rescale_image(img=None):
 
 def str2bool(v):
     if isinstance(v, bool):
-       return v
+        return v
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
         return True
     elif v.lower() in ('no', 'false', 'f', 'n', '0'):
         return False
     else:
         raise ArgumentTypeError('Boolean value expected.')
+
+
+def create_filenames_with_baseline_gt(save_folder, img_filename):
+    article_gt_savefile = os.path.join(save_folder, "C3", img_filename + "_GT0.png")
+    baseline_gt_savefile = os.path.join(args.save_folder, "C3", newspaper_filename + "_GT1.png")
+    other_gt_savefile = os.path.join(args.save_folder, "C3", newspaper_filename + "_GT2.png")
+    downscaled_grey_image_savefile = os.path.join(args.save_folder, newspaper_filename + ".png")
+    rotation_savefile_name = downscaled_grey_image_savefile + ".rot"
+
+    return article_gt_savefile, baseline_gt_savefile, other_gt_savefile, downscaled_grey_image_savefile, \
+           rotation_savefile_name
+
+
+def create_filenames_wo_baseline_gt(save_folder, img_filename):
+    article_gt_savefile = os.path.join(save_folder, "C3", img_filename + "_GT0.png")
+    other_gt_savefile = os.path.join(args.save_folder, "C3", newspaper_filename + "_GT1.png")
+    downscaled_grey_image_savefile = os.path.join(args.save_folder, newspaper_filename + ".png")
+    rotation_savefile_name = downscaled_grey_image_savefile + ".rot"
+
+    return article_gt_savefile, other_gt_savefile, downscaled_grey_image_savefile, rotation_savefile_name
+
+
+def check_if_files_exist(*file_names):
+    files_exist = map(os.path.isfile, file_names)
+    return all(files_exist)
+
+
+def convert_and_apply_dilation(img, mode='article'):
+    # other modes: baseline
+    img_np = img.convert('L')
+    img_np = np.array(img_np, np.uint8)
+
+    if mode == 'article':
+        img_np = apply_transform(img_np, transform_type='dilation', kernel_size=(10, 10),
+                                 kernel_type='rect',
+                                 iterations=1)
+        img_np = apply_transform(img_np, transform_type='erosion', kernel_size=(5, 5),
+                                 kernel_type='rect',
+                                 iterations=1)
+    elif mode == 'baseline':
+        img_np = apply_transform(img_np, transform_type='dilation', kernel_size=(1, 3),
+                                 kernel_type='rect',
+                                 iterations=1)
+
+    return img_np
+
+
+def create_baseline_gt_img(ar_dict, sc_factor, img_width, img_height):
+    img_scaled_width = round(img_width * sc_factor)
+    img_scaled_height = round(img_height * sc_factor)
+
+    baseline_polygon_img = None
+    for aid, ars in ar_dict.items():
+        baseline_polygon_img = plot_polys_binary(
+            [rescale_points(tl.baseline.points_list, sc_factor) for ar in ars for tl in
+             ar.textlines],
+            baseline_polygon_img, img_height=img_scaled_height, img_width=img_scaled_width, closed=False)
+
+    baseline_polygon_img_np = convert_and_apply_dilation(baseline_polygon_img, mode='baseline')
+
+    return baseline_polygon_img_np
+
+
+def create_article_polygon_gt_img(surr_polys_dict, sc_factor, img_width, img_height):
+    img_scaled_width = round(img_width * sc_factor)
+    img_scaled_height = round(img_height * sc_factor)
+
+    article_polygon_img = None
+    for aid, surr_polys in surr_polys_dict.items():
+        if aid is None:
+            continue
+        surr_polys_scaled = []
+        for sp in surr_polys:
+            sp_as_list = sp.as_list()
+            surr_polys_scaled.append(rescale_points(sp_as_list, sc_factor))
+
+        # returns a pillow image
+        article_polygon_img = plot_polys_binary(surr_polys_scaled, article_polygon_img, img_height=img_scaled_height,
+                                                img_width=img_scaled_width)
+
+    article_polygon_img_np = convert_and_apply_dilation(article_polygon_img, mode='article')
+
+    return article_polygon_img_np
+
+
+def create_other_gt_img(*channel_images):
+    other_img_np = 255 * np.ones(channel_images[0].shape, np.uint8)
+
+    for channel_img in channel_images:
+        other_img_np -= channel_img
+
+    other_img_np *= ((other_img_np == 0) + (other_img_np == 255))
+
+    return other_img_np
+
+
+def save_gt_data(savefile_name, img_np):
+    cv2.imwrite(savefile_name, img_np)
+    print(f'Saved file {savefile_name}')
+
+
+def save_downscaled_grey_img(path_to_img, savefile_name, sc_factor, img_width_to_match, img_height_to_match):
+    grey_img = Image.open(path_to_img).convert('L')
+    assert grey_img.size == (img_width_to_match, img_height_to_match), f"resolutions of images don't match but are" \
+        f"{grey_img.size} and ({img_width_to_match, img_height_to_match})"
+    grey_img_np = cv2.resize(np.array(grey_img, np.uint8), None, fx=sc_factor, fy=sc_factor,
+                             interpolation=cv2.INTER_AREA)
+    cv2.imwrite(savefile_name, grey_img_np)
+    print(f'Saved file {savefile_name}')
 
 
 if __name__ == '__main__':
@@ -121,6 +228,10 @@ if __name__ == '__main__':
     parser.add_argument('--min_width_intersect', default=10, type=int,
                         help='How much two article rectangles at least have to overlap '
                              'horizontally to connect them to one article rectangle in a postprocessing step.')
+    parser.add_argument('--use_baseline_gt', type=str2bool, nargs='?', const=True, default=True,
+                        help='whether to create baseline GT as an additional channel or not.')
+    parser.add_argument('--plot_page_xml', type=str2bool, nargs='?', const=True, default=True,
+                        help='whether to plot the PageXml or not.')
 
     args = parser.parse_args()
 
@@ -136,147 +247,69 @@ if __name__ == '__main__':
     if not os.path.exists(os.path.join(args.save_folder, 'C3')):
         os.makedirs(os.path.join(args.save_folder, 'C3'))
 
-    path_to_xml_lst = './tests/resources/test_run_gt_generation/onb_page.lst'
-    path_to_img_lst = './tests/resources/test_run_gt_generation/onb_img.lst'
-    savedir = './tests/resources/test_run_gt_generation/onb_gt_contour_test/'
+    with open(args.path_to_xml_lst) as f, open(args.path_to_img_lst) as g:
+        for path_to_page_xml, path_to_img in zip(f.readlines(), g.readlines()):
+            path_to_page_xml = path_to_page_xml.strip()
+            path_to_img = path_to_img.strip()
 
-    with open(args.path_to_xml_lst) as f:
-        with open(args.path_to_img_lst) as g:
-            for path_to_page_xml, path_to_img in zip(f.readlines(), g.readlines()):
-                path_to_page_xml = path_to_page_xml.strip()
-                path_to_img = path_to_img.strip()
+            page_filename = os.path.basename(path_to_page_xml)
+            newspaper_filename = os.path.splitext(page_filename)[0]
 
-                page_filename = os.path.basename(path_to_page_xml)
-                newspaper_filename = os.path.splitext(page_filename)[0]
+            if args.use_baseline_gt:
+                article_gt_filename, baseline_gt_filename, other_gt_filename, downscaled_grey_img_filename, rotation_filename = create_filenames_with_baseline_gt(
+                    save_folder=args.save_folder, img_filename=newspaper_filename)
+                files_exist = check_if_files_exist(article_gt_filename, baseline_gt_filename, other_gt_filename,
+                                                   downscaled_grey_img_filename, rotation_filename)
 
-                # Same structure as for the baseline detection training
-                article_gt_savefile_name = os.path.join(args.save_folder, "C3", newspaper_filename + "_GT0.png")
-                baseline_gt_savefile_name = os.path.join(args.save_folder, "C3", newspaper_filename + "_GT1.png")
-                other_gt_savefile_name = os.path.join(args.save_folder, "C3", newspaper_filename + "_GT2.png")
-                downscaled_grey_image_savefile_name = os.path.join(args.save_folder, newspaper_filename + ".png")
+            else:
+                article_gt_filename, other_gt_filename, downscaled_grey_img_filename, rotation_filename = create_filenames_wo_baseline_gt(
+                    save_folder=args.save_folder, img_filename=newspaper_filename)
+                files_exist = check_if_files_exist(article_gt_filename, other_gt_filename, downscaled_grey_img_filename,
+                                                   rotation_filename)
 
-                rotation_savefile_name = downscaled_grey_image_savefile_name + ".rot"
+            if files_exist:
+                print(
+                    f"GT Files for PageXml {path_to_page_xml} already exist, skipping...")
+                continue
 
-                if os.path.isfile(article_gt_savefile_name) and os.path.isfile(baseline_gt_savefile_name) \
-                        and os.path.isfile(other_gt_savefile_name) and os.path.isfile(
-                    downscaled_grey_image_savefile_name) and os.path.isfile(rotation_savefile_name):
-                    print(
-                        f"GT Files for PageXml {path_to_page_xml} already exist, skipping...")
-                    continue
+            # TODO: only generates files with '0's in it -> fix this
+            with open(rotation_filename, "w") as rot:
+                rot.write("0")
 
-                # create rotation files
-                # TODO: only generates files with '0's in it -> fix this
-                with open(rotation_savefile_name, "w") as rot:
-                    rot.write("0")
+            page = Page(path_to_page_xml)
+            img_width, img_height = page.get_image_resolution()
+            article_rectangle_dict = get_article_rectangles_from_baselines(page, path_to_img,
+                                                                           use_surr_polygons=args.use_surr_polys,
+                                                                           stretch=args.use_stretch)
 
-                page = Page(path_to_page_xml)
+            if args.fixed_img_height:
+                sc_factor = args.fixed_img_height / img_height
+            else:
+                sc_factor = args.scaling_factor
 
-                img_width, img_height = page.get_image_resolution()
+            surr_polys_dict = merge_article_rectangles_vertically(article_rectangle_dict,
+                                                                  min_width_intersect=args.min_width_intersect,
+                                                                  use_convex_hull=args.use_convex_hull)
 
-                article_rectangle_dict = get_article_rectangles_from_baselines(page, path_to_img,
-                                                                               use_surr_polygons=args.use_surr_polys,
-                                                                               stretch=args.use_stretch)
-
-                # get the width and height of the rescaled image and add 1 pixel to the borders
-                if args.fixed_img_height:
-                    sc_factor = args.fixed_img_height / img_height
-                else:
-                    sc_factor = args.scaling_factor
-
-                # OpenCV also uses Bankers rounding (cv2.resize)
-                img_scaled_height = round(img_height * sc_factor) + 1
-                img_scaled_width = round(img_width * sc_factor) + 1
-
-                # Convert the article rectangles to surrounding polygons
-                surr_polys_dict = merge_article_rectangles_vertically(article_rectangle_dict,
-                                                                      min_width_intersect=args.min_width_intersect,
-                                                                      use_convex_hull=args.use_convex_hull)
-
-                # Create Baseline GT image
-                baseline_polygon_img = None
-                for aid, ars in article_rectangle_dict.items():
-                    baseline_polygon_img = plot_polys_binary(
-                        [rescale_points(tl.baseline.points_list, sc_factor) for ar in ars for tl in
-                         ar.textlines],
-                        baseline_polygon_img, img_height=img_scaled_height, img_width=img_scaled_width, closed=False)
-
-                # Create Article Boundary GT image
-                article_polygon_img = None
-                surr_polys_scaled_dict = defaultdict(list)
-                for aid, surr_polys in surr_polys_dict.items():
-                    if aid is None:
-                        continue
-                    # rescale the surrounding polygons
-                    surr_polys_scaled = []
-                    for sp in surr_polys:
-                        sp_as_list = sp.as_list()
-                        surr_polys_scaled.append(rescale_points(sp_as_list, sc_factor))
-
-                    # returns a pillow image
-                    article_polygon_img = plot_polys_binary(surr_polys_scaled, article_polygon_img,
-                                                            img_height=img_scaled_height,
-                                                            img_width=img_scaled_width)
-                    surr_polys_scaled_dict[aid] = surr_polys_scaled
-
-                # Comment out if you want to see the image with the corresponding regions before saving
+            if args.plot_page_xml:
                 page_plot.plot_pagexml(page, path_to_img)
-                plot_gt_data(path_to_img, {aid: [poly.as_list() for poly in poly_list] for aid, poly_list in surr_polys_dict.items() if aid is not None})
+            plot_gt_data(path_to_img,
+                         {aid: [poly.as_list() for poly in poly_list] for aid, poly_list in surr_polys_dict.items() if
+                          aid is not None})
 
-                # convert pillow image to numpy array to use it in opencv
-                def convert_and_apply_dilation(img, mode='article'):
-                    # other modes: baseline
-                    img_np = img.convert('L')
-                    img_np = np.array(img_np, np.uint8)
+            article_polygon_img_np = create_article_polygon_gt_img(surr_polys_dict, sc_factor, img_width, img_height)
 
-                    if mode == 'article':
-                        img_np = apply_transform(img_np, transform_type='dilation', kernel_size=(10, 10),
-                                                 kernel_type='rect',
-                                                 iterations=1)
-                        img_np = apply_transform(img_np, transform_type='erosion', kernel_size=(5, 5),
-                                                 kernel_type='rect',
-                                                 iterations=1)
-                    elif mode == 'baseline':
-                        img_np = apply_transform(img_np, transform_type='dilation', kernel_size=(1, 3),
-                                                 kernel_type='rect',
-                                                 iterations=1)
+            if args.use_baseline_gt:
+                baseline_polygon_img_np = create_baseline_gt_img(article_rectangle_dict, sc_factor, img_width,
+                                                                 img_height)
+                save_gt_data(baseline_gt_filename, baseline_polygon_img_np)
 
-                    return img_np
+                other_img_np = create_other_gt_img(article_polygon_img_np, baseline_polygon_img_np)
+            else:
+                other_img_np = create_other_gt_img(article_polygon_img_np)
 
-
-                article_polygon_img_np = convert_and_apply_dilation(article_polygon_img, mode='article')
-                baseline_polygon_img_np = convert_and_apply_dilation(baseline_polygon_img, mode='baseline')
-
-                # make sure to reduce the image width and height by one pixel
-                article_polygon_img_np = article_polygon_img_np[:-1, :-1]
-                baseline_polygon_img_np = baseline_polygon_img_np[:-1, :-1]
-
-                # Create the GT for the 'other' channel: white image minus the gt for article bounds and baselines
-                other_img_np = 255 * np.ones(article_polygon_img_np.shape, np.uint8)
-                other_img_np -= article_polygon_img_np
-                other_img_np -= baseline_polygon_img_np
-                # assign value 0 to the pixels that belong to a baseline as well as to an article boundary
-                other_img_np *= ((other_img_np == 0) + (other_img_np == 255))
-
-                # save article polygon image
-                cv2.imwrite(article_gt_savefile_name, article_polygon_img_np)
-                print(f'Saved file {article_gt_savefile_name}')
-                # polygon_img.show()
-
-                # save baseline polygon image
-                cv2.imwrite(baseline_gt_savefile_name, baseline_polygon_img_np)
-                print(f'Saved file {baseline_gt_savefile_name}')
-
-                # save other image
-                cv2.imwrite(other_gt_savefile_name, other_img_np)
-                print(f'Saved file {other_gt_savefile_name}')
-
-                # save the grey image in the same resolution as the GT data
-                grey_img = Image.open(path_to_img).convert('L')
-                assert grey_img.size == (img_width, img_height), f"resolutions of images don't match but are" \
-                    f"{grey_img.size} and ({img_width, img_height})"
-                grey_img_np = cv2.resize(np.array(grey_img, np.uint8), None, fx=sc_factor, fy=sc_factor,
-                                         interpolation=cv2.INTER_AREA)
-                cv2.imwrite(downscaled_grey_image_savefile_name, grey_img_np)
-                print(f'Saved file {downscaled_grey_image_savefile_name}')
+            save_gt_data(article_gt_filename, article_polygon_img_np)
+            save_gt_data(other_gt_filename, other_img_np)
+            save_downscaled_grey_img(path_to_img, downscaled_grey_img_filename, sc_factor, img_width, img_height)
 
     jpype.shutdownJVM()
