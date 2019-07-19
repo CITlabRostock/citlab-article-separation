@@ -45,7 +45,7 @@ def plot_gt_data(img_path, surr_polys_dict, show=True):
         plt.show()
 
 
-def plot_polys_binary(polygon_list, img=None, img_width=None, img_height=None, closed=True):
+def plot_polys_binary(polygon_list, img=None, img_width=None, img_height=None, closed=True, fill_articles=False):
     """Adds a list of polygons `polygon_list` to a pillow image `img`. If `img` is None a new pillow image is generated
     with a width of `img_width` and a height of `img_height`.
 
@@ -69,7 +69,10 @@ def plot_polys_binary(polygon_list, img=None, img_width=None, img_height=None, c
     pdraw = ImageDraw.Draw(img)
     for poly in polygon_list:
         if closed:
-            pdraw.polygon(poly, outline="white")
+            if fill_articles:
+                pdraw.polygon(poly, outline="white", fill="white")
+            else:
+                pdraw.polygon(poly, outline="white")
         else:
             pdraw.line(poly, fill="white", width=1)
 
@@ -119,12 +122,15 @@ def check_if_files_exist(*file_names):
     return all(files_exist)
 
 
-def convert_and_apply_dilation(img, mode='article'):
+def convert_and_apply_dilation(img, mode='article', fill_articles=False):
     # other modes: baseline
     img_np = img.convert('L')
     img_np = np.array(img_np, np.uint8)
 
     if mode == 'article':
+        if fill_articles:
+            return img_np
+
         img_np = apply_transform(img_np, transform_type='dilation', kernel_size=(10, 10),
                                  kernel_type='rect',
                                  iterations=1)
@@ -155,7 +161,7 @@ def create_baseline_gt_img(ar_dict, sc_factor, img_width, img_height):
     return baseline_polygon_img_np
 
 
-def create_article_polygon_gt_img(surr_polys_dict, sc_factor, img_width, img_height):
+def create_article_polygon_gt_img(surr_polys_dict, sc_factor, img_width, img_height, fill_articles):
     img_scaled_width = round(img_width * sc_factor)
     img_scaled_height = round(img_height * sc_factor)
 
@@ -170,9 +176,10 @@ def create_article_polygon_gt_img(surr_polys_dict, sc_factor, img_width, img_hei
 
         # returns a pillow image
         article_polygon_img = plot_polys_binary(surr_polys_scaled, article_polygon_img, img_height=img_scaled_height,
-                                                img_width=img_scaled_width)
+                                                img_width=img_scaled_width, fill_articles=fill_articles)
 
-    article_polygon_img_np = convert_and_apply_dilation(article_polygon_img, mode='article')
+    article_polygon_img_np = convert_and_apply_dilation(article_polygon_img, mode='article',
+                                                        fill_articles=fill_articles)
 
     return article_polygon_img_np
 
@@ -232,6 +239,9 @@ if __name__ == '__main__':
                         help='whether to create baseline GT as an additional channel or not.')
     parser.add_argument('--plot_page_xml', type=str2bool, nargs='?', const=True, default=True,
                         help='whether to plot the PageXml or not.')
+    parser.add_argument('--fill_articles', type=str2bool, nargs='?', const=True, default=False,
+                        help='if True use filled article GT instead of just the boundaries. Only use with'
+                             ' "--use_baseline_gt False"')
 
     args = parser.parse_args()
 
@@ -297,7 +307,8 @@ if __name__ == '__main__':
                          {aid: [poly.as_list() for poly in poly_list] for aid, poly_list in surr_polys_dict.items() if
                           aid is not None})
 
-            article_polygon_img_np = create_article_polygon_gt_img(surr_polys_dict, sc_factor, img_width, img_height)
+            article_polygon_img_np = create_article_polygon_gt_img(surr_polys_dict, sc_factor, img_width, img_height,
+                                                                   args.fill_articles)
 
             if args.use_baseline_gt:
                 baseline_polygon_img_np = create_baseline_gt_img(article_rectangle_dict, sc_factor, img_width,
