@@ -112,9 +112,20 @@ def create_filenames_wo_baseline_gt(save_folder, img_filename):
     article_gt_savefile = os.path.join(save_folder, "C3", img_filename + "_GT0.png")
     other_gt_savefile = os.path.join(args.save_folder, "C3", newspaper_filename + "_GT1.png")
     downscaled_grey_image_savefile = os.path.join(args.save_folder, newspaper_filename + ".png")
-    rotation_savefile_name = downscaled_grey_image_savefile + ".rot"
+    rotation_savefile = downscaled_grey_image_savefile + ".rot"
 
-    return article_gt_savefile, other_gt_savefile, downscaled_grey_image_savefile, rotation_savefile_name
+    return article_gt_savefile, other_gt_savefile, downscaled_grey_image_savefile, rotation_savefile
+
+
+def create_filenames_ab_a(save_folder, img_filename):
+    article_boundary_gt_savefile = os.path.join(save_folder, "C3", img_filename + "_GT0.png")
+    article_gt_savefile = os.path.join(save_folder, "C3", img_filename + "_GT1.png")
+    other_gt_savefile = os.path.join(args.save_folder, "C3", newspaper_filename + "_GT2.png")
+    downscaled_grey_image_savefile = os.path.join(args.save_folder, newspaper_filename + ".png")
+    rotation_savefile = downscaled_grey_image_savefile + ".rot"
+
+    return article_gt_savefile, article_boundary_gt_savefile, other_gt_savefile, downscaled_grey_image_savefile, \
+           rotation_savefile
 
 
 def check_if_files_exist(*file_names):
@@ -235,15 +246,20 @@ if __name__ == '__main__':
     parser.add_argument('--min_width_intersect', default=10, type=int,
                         help='How much two article rectangles at least have to overlap '
                              'horizontally to connect them to one article rectangle in a postprocessing step.')
-    parser.add_argument('--use_baseline_gt', type=str2bool, nargs='?', const=True, default=True,
-                        help='whether to create baseline GT as an additional channel or not.')
     parser.add_argument('--plot_page_xml', type=str2bool, nargs='?', const=True, default=True,
                         help='whether to plot the PageXml or not.')
-    parser.add_argument('--fill_articles', type=str2bool, nargs='?', const=True, default=False,
-                        help='if True use filled article GT instead of just the boundaries. Only use with'
-                             ' "--use_baseline_gt False"')
+    parser.add_argument('--mode', default='ab_bl', type=str,
+                        help='choose which GT you want to generate, choose from ["ab_bl", "ab", "a"].\n'
+                             '\t ab_bl: article boundaries + baselines\n'
+                             '\t ab: article boundaries\n'
+                             '\t a: article filled')
+
+    MODES = ['ab_bl', 'ab', 'a', 'ab_a']
 
     args = parser.parse_args()
+
+    if args.mode.lower() not in MODES:
+        raise ValueError(f'Please choose from one of the modes {MODES}.')
 
     if args.path_to_xml_lst == '':
         raise ValueError(f'Please provide a path to the list of PageXML files.')
@@ -265,17 +281,23 @@ if __name__ == '__main__':
             page_filename = os.path.basename(path_to_page_xml)
             newspaper_filename = os.path.splitext(page_filename)[0]
 
-            if args.use_baseline_gt:
+            if args.mode.lower() == "ab_bl":
                 article_gt_filename, baseline_gt_filename, other_gt_filename, downscaled_grey_img_filename, rotation_filename = create_filenames_with_baseline_gt(
                     save_folder=args.save_folder, img_filename=newspaper_filename)
                 files_exist = check_if_files_exist(article_gt_filename, baseline_gt_filename, other_gt_filename,
                                                    downscaled_grey_img_filename, rotation_filename)
 
-            else:
+            elif args.mode.lower() in ["a", "ab"]:
                 article_gt_filename, other_gt_filename, downscaled_grey_img_filename, rotation_filename = create_filenames_wo_baseline_gt(
                     save_folder=args.save_folder, img_filename=newspaper_filename)
                 files_exist = check_if_files_exist(article_gt_filename, other_gt_filename, downscaled_grey_img_filename,
                                                    rotation_filename)
+
+            elif args.mode.lower() == "ab_a":
+                article_gt_filename, article_boundary_gt_filename, other_gt_filename, downscaled_grey_img_filename, rotation_filename = create_filenames_ab_a(
+                    save_folder=args.save_folder, img_filename=newspaper_filename)
+                files_exist = check_if_files_exist(article_gt_filename, article_boundary_gt_filename, other_gt_filename,
+                                                   downscaled_grey_img_filename, rotation_filename)
 
             if files_exist:
                 print(
@@ -307,17 +329,33 @@ if __name__ == '__main__':
                          {aid: [poly.as_list() for poly in poly_list] for aid, poly_list in surr_polys_dict.items() if
                           aid is not None})
 
-            article_polygon_img_np = create_article_polygon_gt_img(surr_polys_dict, sc_factor, img_width, img_height,
-                                                                   args.fill_articles)
-
-            if args.use_baseline_gt:
+            if args.mode == "ab_bl":
+                article_polygon_img_np = create_article_polygon_gt_img(surr_polys_dict, sc_factor, img_width,
+                                                                       img_height, fill_articles=False)
                 baseline_polygon_img_np = create_baseline_gt_img(article_rectangle_dict, sc_factor, img_width,
                                                                  img_height)
                 save_gt_data(baseline_gt_filename, baseline_polygon_img_np)
 
                 other_img_np = create_other_gt_img(article_polygon_img_np, baseline_polygon_img_np)
-            else:
+            elif args.mode == "ab":
+                article_polygon_img_np = create_article_polygon_gt_img(surr_polys_dict, sc_factor, img_width,
+                                                                       img_height, fill_articles=False)
                 other_img_np = create_other_gt_img(article_polygon_img_np)
+            elif args.mode == "a":
+                article_polygon_img_np = create_article_polygon_gt_img(surr_polys_dict, sc_factor, img_width,
+                                                                       img_height, fill_articles=True)
+                article_polygon_bounds_img_np = create_article_polygon_gt_img(surr_polys_dict, sc_factor, img_width,
+                                                                              img_height, fill_articles=False)
+                article_polygon_img_np -= article_polygon_bounds_img_np
+                other_img_np = create_other_gt_img(article_polygon_img_np)
+            elif args.mode == "ab_a":
+                article_polygon_img_np = create_article_polygon_gt_img(surr_polys_dict, sc_factor, img_width,
+                                                                       img_height, fill_articles=True)
+                article_polygon_bounds_img_np = create_article_polygon_gt_img(surr_polys_dict, sc_factor, img_width,
+                                                                              img_height, fill_articles=False)
+                article_polygon_img_np -= article_polygon_bounds_img_np
+                save_gt_data(article_boundary_gt_filename, article_polygon_bounds_img_np)
+                other_img_np = create_other_gt_img(article_polygon_img_np, article_polygon_bounds_img_np)
 
             save_gt_data(article_gt_filename, article_polygon_img_np)
             save_gt_data(other_gt_filename, other_img_np)

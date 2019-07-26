@@ -47,6 +47,8 @@ def plot_net_output(path_to_pb, path_to_img_lst, gpu_device="0", n_class=3):
                 img_name = os.path.basename(path_to_img)
                 img_name, ext = os.path.splitext(img_name)
 
+                # ext = ".png"
+
                 path_to_gt_0 = os.path.join(dirname, "C3", img_name + "_GT0" + ext)
                 path_to_gt_1 = os.path.join(dirname, "C3", img_name + "_GT1" + ext)
                 path_to_gt_2 = os.path.join(dirname, "C3", img_name + "_GT2" + ext)
@@ -63,7 +65,7 @@ def plot_net_output(path_to_pb, path_to_img_lst, gpu_device="0", n_class=3):
                 out_img = out_np
 
                 out_img_masked = np.ma.masked_where(out_img < 0.05, out_img)
-                # out_img = np.array((out_img > 0.2), np.uint8)
+                # out_img = np.array((out_img > 0.99), np.uint8)
 
                 # fig = plt.figure()
                 # plt.imshow(img, cmap=plt.cm.gray)
@@ -89,7 +91,7 @@ def plot_net_output(path_to_pb, path_to_img_lst, gpu_device="0", n_class=3):
                 for cl in range(n_class_img):
                     a = fig.add_subplot(2, n_class_img + 2, cl + 2)
                     plt.imshow(out_img[0, :, :, cl], cmap=plt.cm.gray, vmin=0.0, vmax=1.0)
-                    cv2.imwrite("./tests/resources/test_plot_net_output/tmp/" + img_name + "_GT" + str(cl) + ext,
+                    cv2.imwrite("./tests/resources/test_plot_net_output/filled_articles/" + img_name + "_GT" + str(cl) + ext,
                                 out_img[0, :, :, cl] * 255)
                     a.set_title('Channel: ' + str(cl))
                 plt.show()
