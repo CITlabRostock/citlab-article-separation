@@ -13,8 +13,8 @@ from citlab_python_util.geometry.polygon import norm_poly_dists
 class DBSCANBaselines:
 
     def __init__(self, data, min_polygons_for_cluster=2, des_dist=5, max_d=50, min_polygons_for_article=3,
-                 rectangle_interline_factor=3 / 2,
-                 bounding_box_epsilon=5,
+                 rectangle_ratio=1 / 5, rectangle_interline_factor=3 / 2,
+                 bounding_box_epsilon=5, min_intersect_ratio=3 / 5,
                  use_java_code=True):
         """ Initialization of the clustering process.
 
@@ -24,10 +24,13 @@ class DBSCANBaselines:
         :param max_d: maximum distance (measured in pixels) for the calculation of the interline distances
         :param min_polygons_for_article: minimum number of required polygons forming an article
 
+        :param rectangle_ratio: ratio between the width and the height of the rectangles
         :param rectangle_interline_factor: multiplication factor to calculate the height of the rectangles with the help
                                            of the interline distances
         :param bounding_box_epsilon: additional width and height value to calculate the bounding boxes of the polygons
                                      during the clustering progress
+        :param min_intersect_ratio: minimum threshold for the intersection being necessary to determine, whether two
+                                    polygons are clustered together or not
 
         :param use_java_code: usage of methods written in java or not
         """
@@ -36,9 +39,10 @@ class DBSCANBaselines:
         self.max_d = max_d
         self.min_polygons_for_article = min_polygons_for_article
 
+        self.rectangle_ratio = rectangle_ratio
         self.rectangle_interline_factor = rectangle_interline_factor
         self.bounding_box_epsilon = bounding_box_epsilon
-        # self.min_intersect_ratio = min_intersect_ratio
+        self.min_intersect_ratio = min_intersect_ratio
 
         list_of_polygons = [tpl[1] for tpl in self.data]
         # calculation of the normed polygons (includes also the calculation of their bounding boxes)
@@ -74,10 +78,12 @@ class DBSCANBaselines:
 
     def clustering_polygons(self):
         """ Clusters the polygons with DBSCAN based approach. """
+
         label = 0
+        number_of_all_polygons = len(self.list_of_normed_polygons)
 
         # if valid center polygon is found, a new cluster is created
-        for polygon_index in range(len(self.list_of_normed_polygons)):
+        for polygon_index in range(number_of_all_polygons):
             # if the polygon's label isn't 0, continue to the next polygon
             if not (self.list_of_labels[polygon_index] == 0):
                 continue
@@ -99,7 +105,7 @@ class DBSCANBaselines:
                 DBSCANBaselines.grow_cluster(self, polygon_index, neighbor_polygons, label)
 
     def grow_cluster(self, polygon_index, neighbor_polygons, this_label):
-        """ Grows a new cluster with label "this_label" from a center polygon with index "polygon_index".
+        """ Grows a new cluster with label "label" from a center polygon with index "polygon_index".
 
         :param polygon_index: index of a center polygon of this new cluster
         :param neighbor_polygons: all neighbors of the center polygon
@@ -152,76 +158,50 @@ class DBSCANBaselines:
         :return: index list of the neighbor polygons
         """
         neighbors = []
+        considerd_polygon = self.list_of_normed_polygons[polygon_index]
+
+        # rectangle distance with usage of the indiviual interline distances
+        interline_distance = self.list_of_interline_distances[polygon_index]
+        height = math.ceil(self.rectangle_interline_factor * interline_distance)
+        width = math.ceil(self.rectangle_ratio * height)
+
+        considered_polygon_rectangle_expand, considered_polygon_rectangle = \
+            DBSCANBaselines.calc_rectangles(self, polygon=considerd_polygon, interline_distance=interline_distance,
+                                            width=width, height=height)
 
         for i, normed_polygon_i in enumerate(self.list_of_normed_polygons):
             if i == polygon_index:
                 continue
 
-            bool_inter = DBSCANBaselines.neighborhood(self, polygon1_index=polygon_index, polygon2_index=i)
-            if bool_inter:
-                neighbors.append(i)
+            interline_distance = self.list_of_interline_distances[i]
+            height = math.ceil(self.rectangle_interline_factor * interline_distance)
+            width = math.ceil(self.rectangle_ratio * height)
+
+            normed_polygon_i_rectangle_expand, normed_polygon_i_rectangle = \
+                DBSCANBaselines.calc_rectangles(self, polygon=normed_polygon_i, interline_distance=interline_distance,
+                                                width=width, height=height)
+
+            intersection_rectangle_1 = considered_polygon_rectangle_expand.intersection(normed_polygon_i_rectangle)
+            intersection_rectangle_2 = normed_polygon_i_rectangle_expand.intersection(considered_polygon_rectangle)
+
+            # if the intersection_rectangle_1 isn't empty, then ...
+            if intersection_rectangle_1.width > 0 and intersection_rectangle_1.height > 0:
+                intersection_surface_1 = intersection_rectangle_1.width * intersection_rectangle_1.height
+                intersection_surface_2 = intersection_rectangle_2.width * intersection_rectangle_2.height
+
+                considered_polygon_rectangle_surface = \
+                    considered_polygon_rectangle.width * considered_polygon_rectangle.height
+                normed_polygon_i_rectangle_surface = \
+                    normed_polygon_i_rectangle.width * normed_polygon_i_rectangle.height
+
+                intersection_ratio_1 = intersection_surface_1 / normed_polygon_i_rectangle_surface
+                intersection_ratio_2 = intersection_surface_2 / considered_polygon_rectangle_surface
+
+                # if one of the intersection surfaces is greater than the threshold "min_intersect_ratio", then ...
+                if intersection_ratio_1 >= self.min_intersect_ratio or intersection_ratio_2 >= self.min_intersect_ratio:
+                    neighbors.append(i)
 
         return neighbors
-
-    def neighborhood(self, polygon1_index, polygon2_index):
-        """ Decides, whether two given polygons "polygon1_index" and "polygon2_index" lie within a defined neighborhood.
-
-        :param polygon1_index: index of the first polygon
-        :param polygon2_index: index of the second polygon
-        :return: True or False
-        """
-        poly1 = self.list_of_normed_polygons[polygon1_index]
-        int_dis1 = self.list_of_interline_distances[polygon1_index]
-
-        poly2 = self.list_of_normed_polygons[polygon2_index]
-        int_dis2 = self.list_of_interline_distances[polygon2_index]
-
-        eps = self.bounding_box_epsilon
-        fac = self.rectangle_interline_factor
-
-        # two different rectangles for polygon 1
-        if poly1.bounds.width > 2 * eps:
-            rec1 = Rectangle(int(poly1.bounds.x + eps), int(poly1.bounds.y - eps),
-                             int(poly1.bounds.width - 2 * eps), int(poly1.bounds.height + 2 * eps))
-        else:
-            rec1 = Rectangle(int(poly1.bounds.x), int(poly1.bounds.y - eps),
-                             int(poly1.bounds.width), int(poly1.bounds.height + 2 * eps))
-
-        rec1_expanded = Rectangle(int(poly1.bounds.x - eps), int(poly1.bounds.y - fac * int_dis1),
-                                  int(poly1.bounds.width + 2 * eps), int(poly1.bounds.height + 2.25 * fac * int_dis1))
-
-        # two different rectangles for polygon 2
-        if poly2.bounds.width > 2 * eps:
-            rec2 = Rectangle(int(poly2.bounds.x + eps), int(poly2.bounds.y - eps),
-                             int(poly2.bounds.width - 2 * eps), int(poly2.bounds.height + 2 * eps))
-        else:
-            rec2 = Rectangle(int(poly2.bounds.x), int(poly2.bounds.y - eps),
-                             int(poly2.bounds.width), int(poly2.bounds.height + 2 * eps))
-
-        rec2_expanded = Rectangle(int(poly2.bounds.x - eps), int(poly2.bounds.y - fac * int_dis2),
-                                  int(poly2.bounds.width + 2 * eps), int(poly2.bounds.height + 2.25 * fac * int_dis2))
-
-        # computation of the intersection rectangles
-        intersection_1to2 = rec1_expanded.intersection(rec2)
-        intersection_2to1 = rec2_expanded.intersection(rec1)
-
-        rec1_surface = (rec1.height + 1) * (rec1.width + 1)
-        rec2_surface = (rec2.height + 1) * (rec2.width + 1)
-
-        if intersection_1to2.width >= 0 and intersection_1to2.height >= 0:
-            intersection1to2_surface = (intersection_1to2.width + 1) * (intersection_1to2.height + 1)
-        else:
-            intersection1to2_surface = 0
-
-        if intersection_2to1.width >= 0 and intersection_2to1.height >= 0:
-            intersection2to1_surface = (intersection_2to1.width + 1) * (intersection_2to1.height + 1)
-        else:
-            intersection2to1_surface = 0
-
-        if max(intersection1to2_surface, intersection2to1_surface) >= min(rec1_surface, rec2_surface):
-            return True
-
-        return False
 
     def get_cluster_of_polygons(self):
         """ Calculates the cluster labels for the polygons.
@@ -296,3 +276,32 @@ class DBSCANBaselines:
                 interline_dist.append(max_d)
 
         return interline_dist
+
+    def calc_rectangles(self, polygon, interline_distance, width, height):
+        """ Calculates an expanded and a "normal" bounding box for a given polygon.
+
+        :param polygon: given polygon
+        :param interline_distance: corresponding interline distance of the polygon
+        :param height: additional height (times 2) of the expanded rectangle
+        :param width: additional width (times 2) of the expanded rectangle
+        :return: expanded rectangle and rectangle
+        """
+        # assumption: if a polygon has nearly the max interline distance "max_d" -> probably this polygon is a headline
+        # the direction downward is probably more important than upward
+        if interline_distance >= 0.9 * self.max_d:
+            rectangle_expand = Rectangle(int(polygon.bounds.x - width),
+                                                  int(polygon.bounds.y - 1 / 2 * height),
+                                                  int(polygon.bounds.width + 2 * width),
+                                                  int(polygon.bounds.height + 5 / 2 * height))
+        else:
+            rectangle_expand = Rectangle(int(polygon.bounds.x - width),
+                                                  int(polygon.bounds.y - height),
+                                                  int(polygon.bounds.width + 2 * width),
+                                                  int(polygon.bounds.height + 2 * height))
+
+        rectangle = Rectangle(int(polygon.bounds.x - self.bounding_box_epsilon),
+                                       int(polygon.bounds.y - self.bounding_box_epsilon),
+                                       int(polygon.bounds.width + 2 * self.bounding_box_epsilon),
+                                       int(polygon.bounds.height + 2 * self.bounding_box_epsilon))
+
+        return rectangle_expand, rectangle
