@@ -9,7 +9,8 @@ def create_text_file_from_page(page: Page, path_to_save_file=None):
     with open(path_to_save_file, 'w') as f:
         for i, textlines in enumerate(article_dict.values()):
             for tl in textlines:
-                f.write(tl.text + "\n")
+                if tl.text:
+                    f.write(tl.text + "\n")
             if i != len(article_dict) - 1:
                 f.write('\n' + '#' * 100 + '\n\n')
 
@@ -17,7 +18,10 @@ def create_text_file_from_page(page: Page, path_to_save_file=None):
 def create_text_files_from_page_list(page_list, path_to_save_folder=None):
     for page in page_list:
         page_file_name = os.path.basename(page)
-        path_to_save_file = os.path.join(path_to_save_folder, page_file_name + '.txt')
+        if path_to_save_folder:
+            path_to_save_file = os.path.join(path_to_save_folder, page_file_name + '.txt')
+        else:
+            path_to_save_file = page + ".txt"
         page = Page(page)
         create_text_file_from_page(page, path_to_save_file)
 
@@ -47,7 +51,7 @@ if __name__ == '__main__':
         create_text_files_from_page_list(paths_to_page_files, path_to_save_folder)
     elif path_to_page_list:
         with open(path_to_page_list, 'r') as pl:
-            create_text_files_from_page_list(pl.readlines(), path_to_save_folder)
+            create_text_files_from_page_list([l.rstrip() for l in pl.readlines()], path_to_save_folder)
     elif path_to_page_file:
         create_text_files_from_page_list([path_to_page_file], path_to_save_folder)
     else:
