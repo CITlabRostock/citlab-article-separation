@@ -170,16 +170,15 @@ class DBSCANBaselines:
         :param polygon2_index: index of the second polygon
         :return: True or False
         """
-        poly1 = self.list_of_normed_polygons[polygon1_index]
-        int_dis1 = self.list_of_interline_distances[polygon1_index]
-
-        poly2 = self.list_of_normed_polygons[polygon2_index]
-        int_dis2 = self.list_of_interline_distances[polygon2_index]
-
         eps = self.bounding_box_epsilon
         fac = self.rectangle_interline_factor
+        average_interline_distance = 1 / len(self.list_of_interline_distances) * sum(self.list_of_interline_distances)
 
-        # two different rectangles for polygon 1
+        # computation of two different rectangles for polygon 1
+        poly1 = self.list_of_normed_polygons[polygon1_index]
+        # int_dis1 = self.list_of_interline_distances[polygon1_index]
+        int_dis1 = average_interline_distance
+
         if poly1.bounds.width > 2 * eps:
             rec1 = Rectangle(int(poly1.bounds.x + eps), int(poly1.bounds.y - eps),
                              int(poly1.bounds.width - 2 * eps), int(poly1.bounds.height + 2 * eps))
@@ -188,9 +187,13 @@ class DBSCANBaselines:
                              int(poly1.bounds.width), int(poly1.bounds.height + 2 * eps))
 
         rec1_expanded = Rectangle(int(poly1.bounds.x - eps), int(poly1.bounds.y - fac * int_dis1),
-                                  int(poly1.bounds.width + 2 * eps), int(poly1.bounds.height + 2.25 * fac * int_dis1))
+                                  int(poly1.bounds.width + 2 * eps), int(poly1.bounds.height + 2 * fac * int_dis1))
 
-        # two different rectangles for polygon 2
+        # computation of two different rectangles for polygon 2
+        poly2 = self.list_of_normed_polygons[polygon2_index]
+        # int_dis2 = self.list_of_interline_distances[polygon2_index]
+        int_dis2 = average_interline_distance
+
         if poly2.bounds.width > 2 * eps:
             rec2 = Rectangle(int(poly2.bounds.x + eps), int(poly2.bounds.y - eps),
                              int(poly2.bounds.width - 2 * eps), int(poly2.bounds.height + 2 * eps))
@@ -199,26 +202,28 @@ class DBSCANBaselines:
                              int(poly2.bounds.width), int(poly2.bounds.height + 2 * eps))
 
         rec2_expanded = Rectangle(int(poly2.bounds.x - eps), int(poly2.bounds.y - fac * int_dis2),
-                                  int(poly2.bounds.width + 2 * eps), int(poly2.bounds.height + 2.25 * fac * int_dis2))
+                                  int(poly2.bounds.width + 2 * eps), int(poly2.bounds.height + 2 * fac * int_dis2))
 
-        # computation of the intersection rectangles
+        # computation of intersection rectangles
         intersection_1to2 = rec1_expanded.intersection(rec2)
         intersection_2to1 = rec2_expanded.intersection(rec1)
 
-        rec1_surface = (rec1.height + 1) * (rec1.width + 1)
-        rec2_surface = (rec2.height + 1) * (rec2.width + 1)
-
-        if intersection_1to2.width >= 0 and intersection_1to2.height >= 0:
-            intersection1to2_surface = (intersection_1to2.width + 1) * (intersection_1to2.height + 1)
+        # computation of intersection surfaces
+        if intersection_1to2.width > 0 and intersection_1to2.height > 0:
+            intersection1to2_surface = intersection_1to2.width * intersection_1to2.height
         else:
             intersection1to2_surface = 0
 
-        if intersection_2to1.width >= 0 and intersection_2to1.height >= 0:
-            intersection2to1_surface = (intersection_2to1.width + 1) * (intersection_2to1.height + 1)
+        if intersection_2to1.width > 0 and intersection_2to1.height > 0:
+            intersection2to1_surface = intersection_2to1.width * intersection_2to1.height
         else:
             intersection2to1_surface = 0
 
-        if max(intersection1to2_surface, intersection2to1_surface) >= min(rec1_surface, rec2_surface):
+        # computation of rectangle surfaces
+        rec1_surface = rec1.height * rec1.width
+        rec2_surface = rec2.height * rec2.width
+
+        if intersection1to2_surface >= rec2_surface or intersection2to1_surface >= rec1_surface:
             return True
 
         return False
