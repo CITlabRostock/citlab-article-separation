@@ -4,9 +4,8 @@ import os
 from argparse import ArgumentParser
 
 import cv2
-import matplotlib.pyplot as plt
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
 
 
 def load_graph(frozen_graph_filename):
@@ -29,7 +28,8 @@ def load_graph(frozen_graph_filename):
     return graph
 
 
-def plot_net_output(path_to_pb, path_to_img_lst, gpu_device="0", n_class=3):
+def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0", rescale=None, mask_threshold=None,
+                    plot_with_gt=False):
     session_conf = tf.ConfigProto()
     session_conf.gpu_options.visible_device_list = gpu_device
 
@@ -44,57 +44,41 @@ def plot_net_output(path_to_pb, path_to_img_lst, gpu_device="0", n_class=3):
                 path_to_img = path_to_img.rstrip()
 
                 dirname = os.path.dirname(path_to_img)
-                img_name = os.path.basename(path_to_img)
-                img_name, ext = os.path.splitext(img_name)
+                img_name, ext = os.path.splitext(os.path.basename(path_to_img))
 
-                # ext = ".png"
-
-                path_to_gt_0 = os.path.join(dirname, "C3", img_name + "_GT0" + ext)
-                path_to_gt_1 = os.path.join(dirname, "C3", img_name + "_GT1" + ext)
-                path_to_gt_2 = os.path.join(dirname, "C3", img_name + "_GT2" + ext)
+                if plot_with_gt:
+                    paths_to_gts = [os.path.join(dirname, "C3", img_name + "_GT" + str(i) + ".png") for i in range(4)]
+                    print(paths_to_gts)
+                    gt_imgs = [cv2.imread(path_to_gt) for path_to_gt in paths_to_gts]
+                    gt_imgs = [cv2.cvtColor(gt_img, cv2.COLOR_BGR2GRAY) for gt_img in gt_imgs]
 
                 img = cv2.imread(path_to_img)
-                gt0_img = cv2.imread(path_to_gt_0)
-                gt1_img = cv2.imread(path_to_gt_1)
-                gt2_img = cv2.imread(path_to_gt_2)
                 img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+                if rescale:
+                    img_gray = cv2.resize(img_gray, None, fx=rescale, fy=rescale, interpolation=cv2.INTER_AREA)
+                    if plot_with_gt:
+                        gt_imgs = [cv2.resize(gt_img, None, fx=rescale, fy=rescale) for gt_img in gt_imgs]
+
                 if len(img_gray.shape) == 2:
                     img_gray = np.expand_dims(img_gray, axis=-1)
                     img_gray = np.expand_dims(img_gray, axis=0)
-                out_np = sess.run(out, feed_dict={x: img_gray})
-                out_img = out_np
+                out_img = sess.run(out, feed_dict={x: img_gray})
 
-                out_img_masked = np.ma.masked_where(out_img < 0.05, out_img)
-                # out_img = np.array((out_img > 0.99), np.uint8)
-
-                # fig = plt.figure()
-                # plt.imshow(img, cmap=plt.cm.gray)
-                # plt.imshow(out_img_masked[0, :, :, 0] * 255, cmap=plt.cm.Blues, vmin=0.0, vmax=1.0)
-                # plt.savefig("./tests/resources/test_plot_net_output/tmp/" + img_name + "_GT0" + ext, dpi=2000)
-                # # cv2.imwrite("./tests/resources/test_plot_net_output/tmp/" + img_name + "_GT0" + ext,
-                # #                             out_img[0, :, :, 0] * 255)
+                if mask_threshold:
+                    out_img = np.array((out_img > 0.80), np.uint8)
 
                 n_class_img = out_img.shape[-1]
-                fig = plt.figure()
-                a = fig.add_subplot(2, n_class_img + 2, 1)
-                plt.imshow(img, cmap=plt.cm.gray)
-                # plt.imshow(out_img[0, :, :, :], cmap=plt.cm.gray)
-                a.set_title('input image')
-
-                fig.add_subplot(2, n_class_img + 2, n_class_img + 4)
-                plt.imshow(gt0_img)
-                fig.add_subplot(2, n_class_img + 2, n_class_img + 5)
-                plt.imshow(gt1_img)
-                fig.add_subplot(2, n_class_img + 2, n_class_img + 6)
-                plt.imshow(gt2_img)
 
                 for cl in range(n_class_img):
-                    a = fig.add_subplot(2, n_class_img + 2, cl + 2)
-                    plt.imshow(out_img[0, :, :, cl], cmap=plt.cm.gray, vmin=0.0, vmax=1.0)
-                    cv2.imwrite("./tests/resources/test_plot_net_output/filled_articles/" + img_name + "_GT" + str(cl) + ext,
-                                out_img[0, :, :, cl] * 255)
-                    a.set_title('Channel: ' + str(cl))
-                plt.show()
+                    out_img_2d = out_img[0, :, :, cl]
+
+                    if plot_with_gt:
+                        gt_img = gt_imgs[cl]
+                        out_img_2d = np.concatenate((out_img_2d, gt_img), axis=1)
+
+                    cv2.imwrite(
+                        os.path.join(save_folder, img_name + "_OUT" + str(cl) + ext), out_img_2d * 255)
 
 
 if __name__ == '__main__':
@@ -103,7 +87,14 @@ if __name__ == '__main__':
                         help="path to the TensorFlow .pb file containing the ARU-Net graph.")
     parser.add_argument('--path_to_img_lst', default='', type=str,
                         help='path to the lst file containing the file paths of the images.')
+    parser.add_argument('--save_folder', default='', type=str, help="path to the save folder")
+    parser.add_argument('--rescale_factor', default=1.0, type=float,
+                        help="rescaling the images before inputting them to the network.")
 
     args = parser.parse_args()
 
-    plot_net_output(args.path_to_tf_graph, args.path_to_img_lst)
+    if not os.path.exists(args.save_folder) or not os.path.isdir(args.save_folder):
+        os.mkdir(args.save_folder)
+
+    plot_net_output(args.path_to_tf_graph, args.path_to_img_lst, args.save_folder, rescale=args.rescale_factor,
+                    plot_with_gt=False)
