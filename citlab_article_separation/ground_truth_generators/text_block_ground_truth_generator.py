@@ -28,15 +28,16 @@ class TextBlockGroundTruthGenerator(GroundTruthGenerator):
             img_height = self.img_res_lst[i][0]
             sc_factor = self.scaling_factors[i]
 
-            tb_outlines_gt_img = self.create_region_gt_img(self.text_regions_list[i], img_width, img_height, fill=False,
-                                                           scaling_factor=sc_factor)
-            tb_filled_gt_img = self.create_region_gt_img(self.text_regions_list[i], img_width, img_height, fill=True,
-                                                         scaling_factor=sc_factor)
+            # tb_outlines_gt_img = self.create_region_gt_img(self.text_regions_list[i], img_width, img_height, fill=False,
+            #                                                scaling_factor=sc_factor)
+            # tb_filled_gt_img = self.create_region_gt_img(self.text_regions_list[i], img_width, img_height, fill=True,
+            #                                              scaling_factor=sc_factor)
             # image_region_gt_img = self.create_region_gt_img(self.image_regions_list[i], img_width, img_height, fill=True,
             #                                                 scaling_factor=sc_factor)
             sep_region_gt_img = self.create_region_gt_img(self.separator_regions_list[i], img_width, img_height,
                                                           fill=True, scaling_factor=sc_factor)
-            gt_channels = [tb_outlines_gt_img, tb_filled_gt_img, sep_region_gt_img]
+            gt_channels = [sep_region_gt_img]
+            # gt_channels = [tb_outlines_gt_img, tb_filled_gt_img, sep_region_gt_img]
             # gt_channels = [tb_outlines_gt_img, tb_filled_gt_img, image_region_gt_img, sep_region_gt_img]
 
             other_gt_img = self.create_other_ground_truth_image(*gt_channels)
@@ -121,7 +122,7 @@ class TextBlockGroundTruthGenerator(GroundTruthGenerator):
 if __name__ == '__main__':
     tb_generator = TextBlockGroundTruthGenerator(
         '/home/max/devel/projects/python/article_separation/lists/textblock_detection/onb_newspaper_tb.lst',
-        use_bounding_box=False, use_min_area_rect=False, fixed_height=8000)
+        use_bounding_box=False, use_min_area_rect=False, fixed_height=5300)
     # print(tb_generator.image_regions_list)
     # print(tb_generator.text_regions_list)
     # tb_generator.create_grey_images()
@@ -140,4 +141,4 @@ if __name__ == '__main__':
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
 
-    tb_generator.run_ground_truth_generation('./data/gt_test_1/')
+    tb_generator.run_ground_truth_generation('./data/rot_test/')
