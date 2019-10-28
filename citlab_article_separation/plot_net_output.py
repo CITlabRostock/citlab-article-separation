@@ -96,4 +96,4 @@ if __name__ == '__main__':
         os.mkdir(args.save_folder)
 
     plot_net_output(args.path_to_tf_graph, args.path_to_img_lst, args.save_folder, rescale=args.rescale_factor,
-                    plot_with_gt=True, mask_threshold=False)
+                    plot_with_gt=False, mask_threshold=False)
