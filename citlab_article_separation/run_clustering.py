@@ -119,9 +119,8 @@ if __name__ == "__main__":
     flags = parser.parse_args()
     hypo_files_paths_list = flags.path_to_xml_lst
 
-    # hypo_files_paths_list = "/home/basti/Documents/ONB_aze_18950706/xml_paths.lst"
-    # hypo_files_paths_list = "/home/basti/Documents/ONB_krz_19110701/xml_paths.lst"
-    # hypo_files_paths_list = "/home/basti/Documents/ONB_nfp_19390115/xml_paths.lst"
+    # hypo_files_paths_list = "/home/basti/Documents/Job_Rostock/NewsEye/HYPO_DATA/onb_nfp_19110701_wordvec_test/xml_paths.lst"
+    # hypo_files_paths_list = "/home/basti/Documents/Job_Rostock/NewsEye/HYPO_DATA/bnf_set_to_cluster_5912/xml_paths.lst"
 
     hypo_files = [line.rstrip('\n') for line in open(hypo_files_paths_list, "r")]
     skipped_files = []
