@@ -85,7 +85,8 @@ class GroundTruthGenerator(ABC):
 
             for i, gt_imgs in enumerate(self.gt_imgs_lst):
                 for j, gt_img in enumerate(gt_imgs):
-                    gt_img_savefile_name = self.get_ground_truth_image_savefile_name(self.img_path_lst[i], j, savedir)
+                    gt_img_savefile_name = self.get_ground_truth_image_savefile_name(self.img_path_lst[i], j, savedir,
+                                                                                     gt_folder_name="C" + str(len(gt_imgs)))
                     cv2.imwrite(gt_img_savefile_name, gt_img)
                 cv2.imwrite(self.get_grey_image_savefile_name(self.img_path_lst[i], savedir), self.grey_img_lst[i])
                 with open(self.get_rotation_savefile_name(self.img_path_lst[i], savedir), "w") as rot:
@@ -116,7 +117,7 @@ class GroundTruthGenerator(ABC):
         return os.path.join(save_dir, img_name_wo_ext + grey_img_file_ext)
 
     @staticmethod
-    def get_rotation_savefile_name(img_name, save_dir, rotation_file_ext=".rot"):
+    def get_rotation_savefile_name(img_name, save_dir, rotation_file_ext=".jpg.rot"):
         img_name_wo_ext = os.path.splitext(os.path.basename(img_name))[0]
         return os.path.join(save_dir, img_name_wo_ext + rotation_file_ext)
 
