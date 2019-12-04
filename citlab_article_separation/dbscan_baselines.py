@@ -4,66 +4,174 @@
 import math
 import jpype
 import collections
+import numpy as np
 
 from citlab_python_util.geometry.rectangle import Rectangle
 from citlab_python_util.geometry.util import calc_reg_line_stats, get_dist_fast, get_in_dist, get_off_dist
-from citlab_python_util.geometry.polygon import norm_poly_dists
+from citlab_python_util.geometry.polygon import Polygon, norm_poly_dists
+
+
+def get_list_of_scaled_polygons(lst_of_polygons, scaling_factor=1):
+    """ Computation of a list of scaled polygons on the basis of a given list of polygons.
+
+    :param lst_of_polygons: polygons to be scaled
+    :param scaling_factor: multiplication factor for all x and y coordinates describing the polygons
+    :return: list of the corresponding scaled polygons
+    """
+    lst_of_scaled_polygons = []
+
+    for polygon in lst_of_polygons:
+        x_scaled = scaling_factor * np.array([polygon.x_points])
+        x_scaled = x_scaled.astype(int)[0].tolist()
+
+        y_scaled = scaling_factor * np.array([polygon.y_points])
+        y_scaled = y_scaled.astype(int)[0].tolist()
+
+        lst_of_scaled_polygons.append(Polygon(x_points=x_scaled, y_points=y_scaled, n_points=len(x_scaled)))
+
+    return lst_of_scaled_polygons
+
+
+def get_list_of_interline_distances(lst_of_polygons, des_dist=5, max_d=500, use_java_code=True):
+    """ Calculates interline distances for every polygon according to "https://arxiv.org/pdf/1705.03311.pdf".
+
+    :param lst_of_polygons: list of polygons for which we want to get the interline distances
+    :param des_dist: desired distance (measured in pixels) of two adjacent pixels in the normed polygons
+    :param max_d: maximum distance (measured in pixels) for the calculation of the interline distances
+    :param use_java_code: usage of methods written in java (faster than python!) or not
+    :return: list of corresponding interline distances
+    """
+    # calculation of the normed polygons (includes also the calculation of their bounding boxes!)
+    lst_of_normed_polygons = norm_poly_dists(poly_list=lst_of_polygons, des_dist=des_dist)
+
+    # call java code to calculate the interline distances
+    if use_java_code:
+        java_object = jpype.JPackage("citlab_article_separation.java").Util()
+
+        lst_of_nomred_polygon_java = []
+
+        for poly in lst_of_normed_polygons:
+            lst_of_nomred_polygon_java.append(jpype.java.awt.Polygon(poly.x_points, poly.y_points, poly.n_points))
+
+        lst_of_interline_distances_java = \
+            java_object.calcInterlineDistances(lst_of_nomred_polygon_java, des_dist, max_d)
+
+        lst_of_interline_distances = list(lst_of_interline_distances_java)
+        return lst_of_interline_distances
+
+    # call python code to calculate the interline distances
+    else:
+        lst_of_interline_distances = []
+
+        for poly_a in lst_of_normed_polygons:
+            # calculate the angle of the linear regression line representing the baseline polygon poly_a
+            angle = calc_reg_line_stats(poly_a)[0]
+
+            # orientation vector (given by angle) of length 1
+            or_vec_y, or_vec_x = math.sin(angle), math.cos(angle)
+            dist = max_d
+
+            # first and last point of polygon
+            pt_a1 = [poly_a.x_points[0], poly_a.y_points[0]]
+            pt_a2 = [poly_a.x_points[-1], poly_a.y_points[-1]]
+
+            # iterate over pixels of the current GT baseline polygon
+            for x_a, y_a in zip(poly_a.x_points, poly_a.y_points):
+                p_a = [x_a, y_a]
+                # iterate over all other polygons (to calculate X_G)
+                for poly_b in lst_of_normed_polygons:
+                    if poly_b != poly_a:
+                        # if polygon poly_b is too far away from pixel p_a, skip
+                        if get_dist_fast(p_a, poly_b.get_bounding_box()) > dist:
+                            continue
+
+                        # get first and last pixel of baseline polygon poly_b
+                        pt_b1 = poly_b.x_points[0], poly_b.y_points[0]
+                        pt_b2 = poly_b.x_points[-1], poly_b.y_points[-1]
+
+                        # calculate the inline distance of the points
+                        in_dist1 = get_in_dist(pt_a1, pt_b1, or_vec_x, or_vec_y)
+                        in_dist2 = get_in_dist(pt_a1, pt_b2, or_vec_x, or_vec_y)
+                        in_dist3 = get_in_dist(pt_a2, pt_b1, or_vec_x, or_vec_y)
+                        in_dist4 = get_in_dist(pt_a2, pt_b2, or_vec_x, or_vec_y)
+                        if (in_dist1 < 0 and in_dist2 < 0 and in_dist3 < 0 and in_dist4 < 0) or (
+                                in_dist1 > 0 and in_dist2 > 0 and in_dist3 > 0 and in_dist4 > 0):
+                            continue
+
+                        for p_b in zip(poly_b.x_points, poly_b.y_points):
+                            if abs(get_in_dist(p_a, p_b, or_vec_x, or_vec_y)) <= 2 * des_dist:
+                                dist = min(dist, abs(get_off_dist(p_a, p_b, or_vec_x, or_vec_y)))
+
+            if dist < max_d:
+                lst_of_interline_distances.append(dist)
+            else:
+                lst_of_interline_distances.append(max_d)
+
+        return lst_of_interline_distances
 
 
 class DBSCANBaselines:
 
-    def __init__(self, data, min_polygons_for_cluster=2, des_dist=5, max_d=50, min_polygons_for_article=3,
-                 rectangle_interline_factor=3 / 2,
-                 bounding_box_epsilon=5,
-                 use_java_code=True):
+    def __init__(self, list_of_polygons, min_polygons_for_cluster=1, min_polygons_for_article=2,
+                 bounding_box_epsilon=5, rectangle_interline_factor=2,
+                 des_dist=5, max_d=500, use_java_code=True, target_average_interline_distance=50):
         """ Initialization of the clustering process.
 
-        :param data: list of tuples ("String", Polygon) as the dataset
-        :param min_polygons_for_cluster: minimum number of required polygons forming a cluster
-        :param des_dist: desired distance (measured in pixels) of two adjacent pixels in the normed polygons
-        :param max_d: maximum distance (measured in pixels) for the calculation of the interline distances
+        :param list_of_polygons: list of polygons
+        :param min_polygons_for_cluster: minimum number of required polygons in neighborhood to form a cluster
         :param min_polygons_for_article: minimum number of required polygons forming an article
 
-        :param rectangle_interline_factor: multiplication factor to calculate the height of the rectangles with the help
-                                           of the interline distances
         :param bounding_box_epsilon: additional width and height value to calculate the bounding boxes of the polygons
                                      during the clustering progress
+        :param rectangle_interline_factor: multiplication factor to calculate the height of the rectangles during the
+                                           clustering progress with the help of the interline distances
 
-        :param use_java_code: usage of methods written in java or not
+        :param des_dist: desired distance (measured in pixels) of two adjacent pixels in the normed polygons
+        :param max_d: maximum distance (measured in pixels) for the calculation of the interline distances
+        :param use_java_code: usage of methods written in java (faster than python!) or not
+        :param target_average_interline_distance: target interline distance for scaling of the polygons
         """
-        self.data = data
-        self.min_polygons_for_cluster = min_polygons_for_cluster
-        self.max_d = max_d
-        self.min_polygons_for_article = min_polygons_for_article
+        list_of_interline_distances = \
+            get_list_of_interline_distances(lst_of_polygons=list_of_polygons,
+                                            des_dist=des_dist, max_d=max_d, use_java_code=use_java_code)
 
-        self.rectangle_interline_factor = rectangle_interline_factor
-        self.bounding_box_epsilon = bounding_box_epsilon
-        # self.min_intersect_ratio = min_intersect_ratio
+        average_list = [dist for dist in list_of_interline_distances if dist > 0]
 
-        list_of_polygons = [tpl[1] for tpl in self.data]
-        # calculation of the normed polygons (includes also the calculation of their bounding boxes)
-        self.list_of_normed_polygons = norm_poly_dists(list_of_polygons, des_dist=des_dist)
+        # scaling the polygons to reach the target average interline distance
+        if target_average_interline_distance > 0 and len(average_list) > 0:
+            # computation of the average interline distance
+            average_interline_distance = 1 / len(average_list) * sum(average_list)
 
-        # call java code to calculate the interline distances
-        if use_java_code:
-            java_object = jpype.JPackage("citlab_article_separation.java").Util()
+            # computation of the polygon scaling factor
+            scale_fac = target_average_interline_distance / average_interline_distance
 
-            list_of_nomred_polygon_java = []
+            list_of_polygons_scaled = \
+                get_list_of_scaled_polygons(lst_of_polygons=list_of_polygons, scaling_factor=scale_fac)
 
-            for poly in self.list_of_normed_polygons:
-                list_of_nomred_polygon_java.append(jpype.java.awt.Polygon(poly.x_points, poly.y_points, poly.n_points))
+            list_of_interline_distances_scaled = \
+                get_list_of_interline_distances(lst_of_polygons=list_of_polygons_scaled,
+                                                des_dist=des_dist, max_d=max_d, use_java_code=use_java_code)
 
-            list_of_interline_distances_java = \
-                java_object.calcInterlineDistances(list_of_nomred_polygon_java, des_dist, self.max_d)
+            # computation of the scaled average interline distance
+            average_list_scaled = [dist for dist in list_of_interline_distances_scaled if dist > 0]
+            average_interline_distance_scaled = 1 / (len(average_list_scaled) + 1e-8) * sum(average_list_scaled)
 
-            self.list_of_interline_distances = list(list_of_interline_distances_java)
-
-        # call python code to calculate the interline distances
+            self.list_of_normed_polygons = norm_poly_dists(poly_list=list_of_polygons_scaled, des_dist=des_dist)
+            self.list_of_interline_distances = list_of_interline_distances_scaled
+            self.avg = average_interline_distance_scaled
+            self.eps = bounding_box_epsilon * scale_fac
         else:
-            self.list_of_interline_distances = []
-            # calculation of the interline distances for all normed polygons
-            self.list_of_interline_distances = \
-                DBSCANBaselines.calc_interline_dist(self, tick_dist=des_dist, max_d=self.max_d)
+            # computation of the average interline distance
+            average_interline_distance = 1 / (len(average_list) + 1e-8) * sum(average_list)
+
+            self.list_of_normed_polygons = norm_poly_dists(poly_list=list_of_polygons, des_dist=des_dist)
+            self.list_of_interline_distances = list_of_interline_distances
+            self.avg = average_interline_distance
+            self.eps = bounding_box_epsilon
+
+        self.fac = rectangle_interline_factor
+        self.min_polygons_for_cluster = min_polygons_for_cluster
+        self.min_polygons_for_article = min_polygons_for_article
 
         # initially all labels for all baselines are 0 (0 means the baseline hasn't been considered yet,
         # -1 stands for noise, clusters are numbered starting from 1)
@@ -170,39 +278,41 @@ class DBSCANBaselines:
         :param polygon2_index: index of the second polygon
         :return: True or False
         """
-        eps = self.bounding_box_epsilon
-        fac = self.rectangle_interline_factor
-        average_interline_distance = 1 / len(self.list_of_interline_distances) * sum(self.list_of_interline_distances)
-
         # computation of two different rectangles for polygon 1
         poly1 = self.list_of_normed_polygons[polygon1_index]
-        # int_dis1 = self.list_of_interline_distances[polygon1_index]
-        int_dis1 = average_interline_distance
+        int_dis1 = self.list_of_interline_distances[polygon1_index]
 
-        if poly1.bounds.width > 2 * eps:
-            rec1 = Rectangle(int(poly1.bounds.x + eps), int(poly1.bounds.y - eps),
-                             int(poly1.bounds.width - 2 * eps), int(poly1.bounds.height + 2 * eps))
+        if not 0.5 * self.avg <= int_dis1 <= 1.5 * self.avg:
+            int_dis1 = self.avg
+
+        if poly1.bounds.width > 2 * self.eps:
+            rec1 = Rectangle(int(poly1.bounds.x + self.eps), int(poly1.bounds.y - self.eps),
+                             int(poly1.bounds.width - 2 * self.eps), int(poly1.bounds.height + 2 * self.eps))
         else:
-            rec1 = Rectangle(int(poly1.bounds.x), int(poly1.bounds.y - eps),
-                             int(poly1.bounds.width), int(poly1.bounds.height + 2 * eps))
+            rec1 = Rectangle(int(poly1.bounds.x), int(poly1.bounds.y - self.eps),
+                             int(poly1.bounds.width), int(poly1.bounds.height + 2 * self.eps))
 
-        rec1_expanded = Rectangle(int(poly1.bounds.x - eps), int(poly1.bounds.y - fac * int_dis1),
-                                  int(poly1.bounds.width + 2 * eps), int(poly1.bounds.height + 2 * fac * int_dis1))
+        rec1_expanded = \
+            Rectangle(int(poly1.bounds.x - self.eps), int(poly1.bounds.y - self.fac * int_dis1),
+                      int(poly1.bounds.width + 2 * self.eps), int(poly1.bounds.height + 2 * self.fac * int_dis1))
 
         # computation of two different rectangles for polygon 2
         poly2 = self.list_of_normed_polygons[polygon2_index]
-        # int_dis2 = self.list_of_interline_distances[polygon2_index]
-        int_dis2 = average_interline_distance
+        int_dis2 = self.list_of_interline_distances[polygon2_index]
 
-        if poly2.bounds.width > 2 * eps:
-            rec2 = Rectangle(int(poly2.bounds.x + eps), int(poly2.bounds.y - eps),
-                             int(poly2.bounds.width - 2 * eps), int(poly2.bounds.height + 2 * eps))
+        if not 0.5 * self.avg <= int_dis2 <= 1.5 * self.avg:
+            int_dis2 = self.avg
+
+        if poly2.bounds.width > 2 * self.eps:
+            rec2 = Rectangle(int(poly2.bounds.x + self.eps), int(poly2.bounds.y - self.eps),
+                             int(poly2.bounds.width - 2 * self.eps), int(poly2.bounds.height + 2 * self.eps))
         else:
-            rec2 = Rectangle(int(poly2.bounds.x), int(poly2.bounds.y - eps),
-                             int(poly2.bounds.width), int(poly2.bounds.height + 2 * eps))
+            rec2 = Rectangle(int(poly2.bounds.x), int(poly2.bounds.y - self.eps),
+                             int(poly2.bounds.width), int(poly2.bounds.height + 2 * self.eps))
 
-        rec2_expanded = Rectangle(int(poly2.bounds.x - eps), int(poly2.bounds.y - fac * int_dis2),
-                                  int(poly2.bounds.width + 2 * eps), int(poly2.bounds.height + 2 * fac * int_dis2))
+        rec2_expanded = \
+            Rectangle(int(poly2.bounds.x - self.eps), int(poly2.bounds.y - self.fac * int_dis2),
+                      int(poly2.bounds.width + 2 * self.eps), int(poly2.bounds.height + 2 * self.fac * int_dis2))
 
         # computation of intersection rectangles
         intersection_1to2 = rec1_expanded.intersection(rec2)
@@ -244,60 +354,3 @@ class DBSCANBaselines:
         print("Number of detected articles (inclusive the \"noise\" class): {}\n".format(len(counter_dict)))
 
         return self.list_of_labels
-
-    def calc_interline_dist(self, tick_dist=5, max_d=250):
-        """ Calculates interline distance values for every (normed!) polygon according to
-            "https://arxiv.org/pdf/1705.03311.pdf".
-
-        :param tick_dist: desired distance of points of the polygon
-        :param max_d: max distance of pixels of a polygon to any other polygon (distance in terms of the x- and y-
-                      distance of the point to a bounding box of another polygon - see get_dist_fast)
-        :return: interline distances for every polygon
-        """
-        interline_dist = []
-
-        for poly_a in self.list_of_normed_polygons:
-            # calculate the angle of the linear regression line representing the baseline polygon poly_a
-            angle = calc_reg_line_stats(poly_a)[0]
-
-            # orientation vector (given by angle) of length 1
-            or_vec_y, or_vec_x = math.sin(angle), math.cos(angle)
-            dist = max_d
-
-            # first and last point of polygon
-            pt_a1 = [poly_a.x_points[0], poly_a.y_points[0]]
-            pt_a2 = [poly_a.x_points[-1], poly_a.y_points[-1]]
-
-            # iterate over pixels of the current GT baseline polygon
-            for x_a, y_a in zip(poly_a.x_points, poly_a.y_points):
-                p_a = [x_a, y_a]
-                # iterate over all other polygons (to calculate X_G)
-                for poly_b in self.list_of_normed_polygons:
-                    if poly_b != poly_a:
-                        # if polygon poly_b is too far away from pixel p_a, skip
-                        if get_dist_fast(p_a, poly_b.get_bounding_box()) > dist:
-                            continue
-
-                        # get first and last pixel of baseline polygon poly_b
-                        pt_b1 = poly_b.x_points[0], poly_b.y_points[0]
-                        pt_b2 = poly_b.x_points[-1], poly_b.y_points[-1]
-
-                        # calculate the inline distance of the points
-                        in_dist1 = get_in_dist(pt_a1, pt_b1, or_vec_x, or_vec_y)
-                        in_dist2 = get_in_dist(pt_a1, pt_b2, or_vec_x, or_vec_y)
-                        in_dist3 = get_in_dist(pt_a2, pt_b1, or_vec_x, or_vec_y)
-                        in_dist4 = get_in_dist(pt_a2, pt_b2, or_vec_x, or_vec_y)
-                        if (in_dist1 < 0 and in_dist2 < 0 and in_dist3 < 0 and in_dist4 < 0) or (
-                                in_dist1 > 0 and in_dist2 > 0 and in_dist3 > 0 and in_dist4 > 0):
-                            continue
-
-                        for p_b in zip(poly_b.x_points, poly_b.y_points):
-                            if abs(get_in_dist(p_a, p_b, or_vec_x, or_vec_y)) <= 2 * tick_dist:
-                                dist = min(dist, abs(get_off_dist(p_a, p_b, or_vec_x, or_vec_y)))
-
-            if dist < max_d:
-                interline_dist.append(dist)
-            else:
-                interline_dist.append(max_d)
-
-        return interline_dist
