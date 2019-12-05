@@ -351,6 +351,6 @@ class DBSCANBaselines:
                 self.list_of_labels = [-1 if x == label else x for x in self.list_of_labels]
 
         counter_dict = collections.Counter(self.list_of_labels)
-        print("Number of detected articles (inclusive the \"noise\" class): {}\n".format(len(counter_dict)))
+        print("Number of detected articles (inclusive the \"noise\" class): {}".format(len(counter_dict)))
 
         return self.list_of_labels

@@ -126,39 +126,31 @@ if __name__ == "__main__":
     parser.add_argument('--target_average_interline_distance', type=int, default=50,
                         help="target interline distance for scaling of the polygons")
 
+    flags = parser.parse_args()
+
     # start java virtual machine to be able to execute the java code
     jpype.startJVM(jpype.getDefaultJVMPath())
 
-    # example with command-line argument
-    flags = parser.parse_args()
-    path_to_xml_lst = flags.path_to_xml_lst
-
-    min_polygons_for_cluster, min_polygons_for_article = flags.min_polygons_for_cluster, flags.min_polygons_for_article
-
-    bounding_box_epsilon, rectangle_interline_factor = flags.bounding_box_epsilon, flags.rectangle_interline_factor
-
-    des_dist, max_d, use_java_code, target_average_interline_distance =\
-        flags.des_dist, flags.max_d, flags.use_java_code, flags.target_average_interline_distance
-
-    xml_files = [line.rstrip('\n') for line in open(path_to_xml_lst, "r")]
+    xml_files = [line.rstrip('\n') for line in open(flags.path_to_xml_lst, "r")]
     skipped_files = []
 
     for i, xml_file in enumerate(xml_files):
         print(xml_file)
         article_id_list = cluster_baselines_dbscan(list_of_polygons=get_data_from_pagexml(path_to_pagexml=xml_file),
-                                                   min_polygons_for_cluster=min_polygons_for_cluster,
-                                                   min_polygons_for_article=min_polygons_for_article,
-                                                   bounding_box_epsilon=bounding_box_epsilon,
-                                                   rectangle_interline_factor=rectangle_interline_factor,
-                                                   des_dist=des_dist, max_d=max_d, use_java_code=use_java_code,
-                                                   target_average_interline_distance=target_average_interline_distance)
+                                                   min_polygons_for_cluster=flags.min_polygons_for_cluster,
+                                                   min_polygons_for_article=flags.min_polygons_for_article,
+                                                   bounding_box_epsilon=flags.bounding_box_epsilon,
+                                                   rectangle_interline_factor=flags.rectangle_interline_factor,
+                                                   des_dist=flags.des_dist, max_d=flags.max_d,
+                                                   use_java_code=flags.use_java_code,
+                                                   target_average_interline_distance=flags.target_average_interline_distance)
         try:
             save_results_in_pagexml(xml_file, article_id_list)
         except:
             print("Can not save the results of the clustering in the Page xml: ", xml_file)
             skipped_files.append(xml_file)
 
-        print("Progress: {:.2f} %".format(((i + 1) / len(xml_files)) * 100))
+        print("\nProgress: {:.2f} %\n".format(((i + 1) / len(xml_files)) * 100))
 
     print("\nNumber of skipped pages since storing errors: ", len(skipped_files))
     print(skipped_files)
