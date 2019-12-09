@@ -48,13 +48,13 @@ def get_list_of_interline_distances(lst_of_polygons, des_dist=5, max_d=500, use_
     if use_java_code:
         java_object = jpype.JPackage("citlab_article_separation.java").Util()
 
-        lst_of_nomred_polygon_java = []
+        lst_of_normed_polygon_java = []
 
         for poly in lst_of_normed_polygons:
-            lst_of_nomred_polygon_java.append(jpype.java.awt.Polygon(poly.x_points, poly.y_points, poly.n_points))
+            lst_of_normed_polygon_java.append(jpype.java.awt.Polygon(poly.x_points, poly.y_points, poly.n_points))
 
         lst_of_interline_distances_java = \
-            java_object.calcInterlineDistances(lst_of_nomred_polygon_java, des_dist, max_d)
+            java_object.calcInterlineDistances(lst_of_normed_polygon_java, des_dist, max_d)
 
         lst_of_interline_distances = list(lst_of_interline_distances_java)
         return lst_of_interline_distances

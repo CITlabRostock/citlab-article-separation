@@ -15,51 +15,45 @@ def get_data_from_pagexml(path_to_pagexml):
     # load the page xml file
     page_file = Page(path_to_pagexml)
     # get all text lines of the loaded page file
-    list_of_txt_lines = page_file.get_textlines()
+    lst_of_txtlines = page_file.get_textlines()
 
-    list_of_polygons = []
+    lst_of_polygons = []
+    lst_of_txtlines_adjusted = []
 
-    for txt_line in list_of_txt_lines:
+    for txtline in lst_of_txtlines:
         try:
             # get the baseline of the text line as polygon
-            list_of_polygons.append(txt_line.baseline.to_polygon())
+            baseline = txtline.baseline.to_polygon()
+            # baselines with less than two points will skipped
+            if len(baseline.x_points) == len(baseline.y_points) > 1:
+                lst_of_polygons.append(txtline.baseline.to_polygon())
+                lst_of_txtlines_adjusted.append(txtline)
         except(AttributeError):
-            print("'NoneType' object in PAGEXML with id {} has no attribute 'to_polygon'!\n".format(txt_line.id))
+            print("'NoneType' object in PAGEXML with id {} has no attribute 'to_polygon'!\n".format(txtline.id))
             continue
 
-    return list_of_polygons
+    return lst_of_polygons, lst_of_txtlines_adjusted
 
 
-def save_results_in_pagexml(path_to_pagexml, list_of_txt_line_labels):
+def save_results_in_pagexml(path_to_pagexml, list_of_txtlines, list_of_txtline_labels):
     """
     :param path_to_pagexml: file path
-    :param list_of_txt_line_labels: list of article tags of the baselines
+    :param list_of_txtlines: list of baselines getting an article tag
+    :param list_of_txtline_labels: list of article tags of the baselines
     """
     page_file = Page(path_to_pagexml)
-    # get all text lines of the loaded page file
-    list_of_txt_lines = page_file.get_textlines()
 
-    txt_line_index = -1
-
-    for i, txt_line in enumerate(list_of_txt_lines):
-        txt_line_index += 1
-
-        try:
-            txt_line.baseline.to_polygon()
-        except(AttributeError):
-            txt_line_index -= 1
-            continue
-
+    for txtline_index, txtline in enumerate(list_of_txtlines):
         # existing article tags are overwritten!
-        if list_of_txt_line_labels[txt_line_index] == -1:
-            txt_article_id = txt_line.get_article_id()
+        if list_of_txtline_labels[txtline_index] == -1:
+            txt_article_id = txtline.get_article_id()
 
             if txt_article_id is not None:
-                txt_line.set_article_id(article_id=None)
+                txtline.set_article_id(article_id=None)
         else:
-            txt_line.set_article_id(article_id="a" + str(list_of_txt_line_labels[txt_line_index]))
+            txtline.set_article_id(article_id="a" + str(list_of_txtline_labels[txtline_index]))
 
-    page_file.set_textline_attr(list_of_txt_lines)
+    page_file.set_textline_attr(list_of_txtlines)
     page_file.write_page_xml(path_to_pagexml)
 
 
@@ -136,7 +130,9 @@ if __name__ == "__main__":
 
     for i, xml_file in enumerate(xml_files):
         print(xml_file)
-        article_id_list = cluster_baselines_dbscan(list_of_polygons=get_data_from_pagexml(path_to_pagexml=xml_file),
+        lst_polygons, lst_txtlines = get_data_from_pagexml(path_to_pagexml=xml_file)
+
+        article_id_list = cluster_baselines_dbscan(list_of_polygons=lst_polygons,
                                                    min_polygons_for_cluster=flags.min_polygons_for_cluster,
                                                    min_polygons_for_article=flags.min_polygons_for_article,
                                                    bounding_box_epsilon=flags.bounding_box_epsilon,
@@ -145,7 +141,8 @@ if __name__ == "__main__":
                                                    use_java_code=flags.use_java_code,
                                                    target_average_interline_distance=flags.target_average_interline_distance)
         try:
-            save_results_in_pagexml(xml_file, article_id_list)
+            save_results_in_pagexml(path_to_pagexml=xml_file, list_of_txtlines=lst_txtlines,
+                                    list_of_txtline_labels=article_id_list)
         except:
             print("Can not save the results of the clustering in the Page xml: ", xml_file)
             skipped_files.append(xml_file)
