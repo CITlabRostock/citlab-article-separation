@@ -4,7 +4,7 @@ import jpype
 from argparse import ArgumentParser
 
 from citlab_python_util.parser.xml.page.page import Page
-from citlab_article_separation import dbscan_baselines
+from citlab_article_separation.baseline_clustering import dbscan_baselines
 
 
 def get_data_from_pagexml(path_to_pagexml):
@@ -29,7 +29,7 @@ def get_data_from_pagexml(path_to_pagexml):
                 lst_of_polygons.append(txtline.baseline.to_polygon())
                 lst_of_txtlines_adjusted.append(txtline)
         except(AttributeError):
-            print("'NoneType' object in PAGEXML with id {} has no attribute 'to_polygon'!\n".format(txtline.id))
+            # print("'NoneType' object in PAGEXML with id {} has no attribute 'to_polygon'!\n".format(txtline.id))
             continue
 
     return lst_of_polygons, lst_of_txtlines_adjusted
@@ -59,7 +59,7 @@ def save_results_in_pagexml(path_to_pagexml, list_of_txtlines, list_of_txtline_l
 
 def cluster_baselines_dbscan(list_of_polygons, min_polygons_for_cluster=1,  min_polygons_for_article=2,
                              bounding_box_epsilon=5, rectangle_interline_factor=2,
-                             des_dist=5, max_d=500, use_java_code=True, target_average_interline_distance=0):
+                             des_dist=5, max_d=500, use_java_code=True, target_average_interline_distance=50):
     """
     :param list_of_polygons: list_of_polygons
     :param min_polygons_for_cluster: minimum number of required polygons in neighborhood to form a cluster
@@ -96,8 +96,8 @@ def cluster_baselines_dbscan(list_of_polygons, min_polygons_for_cluster=1,  min_
 if __name__ == "__main__":
     parser = ArgumentParser()
     # command-line arguments
-    parser.add_argument('--path_to_xml_lst', type=str, required=True,
-                        help="path to the lst file containing the file paths of the page xml's to be processed")
+    parser.add_argument('--path_to_xml_file', type=str, required=True,
+                        help="path to the page xml file to be processed")
 
     parser.add_argument('--min_polygons_for_cluster', type=int, default=1,
                         help="minimum number of required polygons in neighborhood to form a cluster")
@@ -125,32 +125,23 @@ if __name__ == "__main__":
     # start java virtual machine to be able to execute the java code
     jpype.startJVM(jpype.getDefaultJVMPath())
 
-    xml_files = [line.rstrip('\n') for line in open(flags.path_to_xml_lst, "r")]
-    skipped_files = []
+    xml_file = flags.path_to_xml_file
+    print(xml_file)
+    lst_polygons, lst_txtlines = get_data_from_pagexml(path_to_pagexml=xml_file)
 
-    for i, xml_file in enumerate(xml_files):
-        print(xml_file)
-        lst_polygons, lst_txtlines = get_data_from_pagexml(path_to_pagexml=xml_file)
-
-        article_id_list = cluster_baselines_dbscan(list_of_polygons=lst_polygons,
-                                                   min_polygons_for_cluster=flags.min_polygons_for_cluster,
-                                                   min_polygons_for_article=flags.min_polygons_for_article,
-                                                   bounding_box_epsilon=flags.bounding_box_epsilon,
-                                                   rectangle_interline_factor=flags.rectangle_interline_factor,
-                                                   des_dist=flags.des_dist, max_d=flags.max_d,
-                                                   use_java_code=flags.use_java_code,
-                                                   target_average_interline_distance=flags.target_average_interline_distance)
-        try:
-            save_results_in_pagexml(path_to_pagexml=xml_file, list_of_txtlines=lst_txtlines,
-                                    list_of_txtline_labels=article_id_list)
-        except:
-            print("Can not save the results of the clustering in the Page xml: ", xml_file)
-            skipped_files.append(xml_file)
-
-        print("\nProgress: {:.2f} %\n".format(((i + 1) / len(xml_files)) * 100))
-
-    print("\nNumber of skipped pages since storing errors: ", len(skipped_files))
-    print(skipped_files)
+    article_id_list = cluster_baselines_dbscan(list_of_polygons=lst_polygons,
+                                               min_polygons_for_cluster=flags.min_polygons_for_cluster,
+                                               min_polygons_for_article=flags.min_polygons_for_article,
+                                               bounding_box_epsilon=flags.bounding_box_epsilon,
+                                               rectangle_interline_factor=flags.rectangle_interline_factor,
+                                               des_dist=flags.des_dist, max_d=flags.max_d,
+                                               use_java_code=flags.use_java_code,
+                                               target_average_interline_distance=flags.target_average_interline_distance)
+    try:
+        save_results_in_pagexml(path_to_pagexml=xml_file, list_of_txtlines=lst_txtlines,
+                                list_of_txtline_labels=article_id_list)
+    except:
+        print("Saving Error for file: {}".format(xml_file))
 
     # shut down the java virtual machine
     jpype.shutdownJVM()
