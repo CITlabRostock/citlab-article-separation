@@ -159,7 +159,7 @@ class DBSCANBaselines:
             self.list_of_normed_polygons = norm_poly_dists(poly_list=list_of_polygons_scaled, des_dist=des_dist)
             self.list_of_interline_distances = list_of_interline_distances_scaled
             self.avg = average_interline_distance_scaled
-            self.eps = bounding_box_epsilon * scale_fac
+            self.eps = int(bounding_box_epsilon * scale_fac)
         else:
             # computation of the average interline distance
             average_interline_distance = 1 / (len(average_list) + 1e-8) * sum(average_list)
