@@ -58,7 +58,7 @@ def save_results_in_pagexml(path_to_pagexml, list_of_txtlines, list_of_txtline_l
 
 
 def cluster_baselines_dbscan(list_of_polygons, min_polygons_for_cluster=1,  min_polygons_for_article=2,
-                             bounding_box_epsilon=5, rectangle_interline_factor=2,
+                             bounding_box_epsilon=8, rectangle_interline_factor=1.5,
                              des_dist=5, max_d=500, use_java_code=True, target_average_interline_distance=50):
     """
     :param list_of_polygons: list_of_polygons
@@ -104,10 +104,10 @@ if __name__ == "__main__":
     parser.add_argument('--min_polygons_for_article', type=int, default=2,
                         help="minimum number of required polygons forming an article")
 
-    parser.add_argument('--bounding_box_epsilon', type=int, default=5,
+    parser.add_argument('--bounding_box_epsilon', type=int, default=8,
                         help="additional width and height value to calculate the bounding boxes of the polygons during "
                              "the clustering progress")
-    parser.add_argument('--rectangle_interline_factor', type=float, default=2,
+    parser.add_argument('--rectangle_interline_factor', type=float, default=1.5,
                         help="multiplication factor to calculate the height of the rectangles during the clustering "
                              "progress with the help of the interline distances")
 

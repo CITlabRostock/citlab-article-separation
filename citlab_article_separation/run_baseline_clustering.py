@@ -51,10 +51,10 @@ if __name__ == "__main__":
     parser.add_argument('--min_polygons_for_article', type=int, default=2,
                         help="minimum number of required polygons forming an article")
 
-    parser.add_argument('--bounding_box_epsilon', type=int, default=5,
+    parser.add_argument('--bounding_box_epsilon', type=int, default=8,
                         help="additional width and height value to calculate the bounding boxes of the polygons during "
                              "the clustering progress")
-    parser.add_argument('--rectangle_interline_factor', type=float, default=2,
+    parser.add_argument('--rectangle_interline_factor', type=float, default=1.5,
                         help="multiplication factor to calculate the height of the rectangles during the clustering "
                              "progress with the help of the interline distances")
 

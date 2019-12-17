@@ -113,7 +113,7 @@ def get_list_of_interline_distances(lst_of_polygons, des_dist=5, max_d=500, use_
 class DBSCANBaselines:
 
     def __init__(self, list_of_polygons, min_polygons_for_cluster=1, min_polygons_for_article=2,
-                 bounding_box_epsilon=5, rectangle_interline_factor=2,
+                 bounding_box_epsilon=8, rectangle_interline_factor=1.5,
                  des_dist=5, max_d=500, use_java_code=True, target_average_interline_distance=50):
         """ Initialization of the clustering process.
 
