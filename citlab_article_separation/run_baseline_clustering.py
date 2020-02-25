@@ -11,7 +11,6 @@ def worker(sample, counter, flags, skipped_files):
                           "--path_to_xml_file", sample,
                           "--min_polygons_for_cluster", str(flags.min_polygons_for_cluster),
                           "--min_polygons_for_article", str(flags.min_polygons_for_article),
-                          "--bounding_box_epsilon", str(flags.bounding_box_epsilon),
                           "--rectangle_interline_factor", str(flags.rectangle_interline_factor),
                           "--des_dist", str(flags.des_dist),
                           "--max_d", str(flags.max_d),
@@ -51,10 +50,7 @@ if __name__ == "__main__":
     parser.add_argument('--min_polygons_for_article', type=int, default=2,
                         help="minimum number of required polygons forming an article")
 
-    parser.add_argument('--bounding_box_epsilon', type=int, default=8,
-                        help="additional width and height value to calculate the bounding boxes of the polygons during "
-                             "the clustering progress")
-    parser.add_argument('--rectangle_interline_factor', type=float, default=1.5,
+    parser.add_argument('--rectangle_interline_factor', type=float, default=1.25,
                         help="multiplication factor to calculate the height of the rectangles during the clustering "
                              "progress with the help of the interline distances")
 

@@ -113,7 +113,7 @@ def get_list_of_interline_distances(lst_of_polygons, des_dist=5, max_d=500, use_
 class DBSCANBaselines:
 
     def __init__(self, list_of_polygons, min_polygons_for_cluster=1, min_polygons_for_article=2,
-                 bounding_box_epsilon=8, rectangle_interline_factor=1.5,
+                 rectangle_interline_factor=1.25,
                  des_dist=5, max_d=500, use_java_code=True, target_average_interline_distance=50):
         """ Initialization of the clustering process.
 
@@ -121,8 +121,6 @@ class DBSCANBaselines:
         :param min_polygons_for_cluster: minimum number of required polygons in neighborhood to form a cluster
         :param min_polygons_for_article: minimum number of required polygons forming an article
 
-        :param bounding_box_epsilon: additional width and height value to calculate the bounding boxes of the polygons
-                                     during the clustering progress
         :param rectangle_interline_factor: multiplication factor to calculate the height of the rectangles during the
                                            clustering progress with the help of the interline distances
 
@@ -159,7 +157,6 @@ class DBSCANBaselines:
             self.list_of_normed_polygons = norm_poly_dists(poly_list=list_of_polygons_scaled, des_dist=des_dist)
             self.list_of_interline_distances = list_of_interline_distances_scaled
             self.avg = average_interline_distance_scaled
-            self.eps = int(bounding_box_epsilon * scale_fac)
         else:
             # computation of the average interline distance
             average_interline_distance = 1 / (len(average_list) + 1e-8) * sum(average_list)
@@ -167,7 +164,6 @@ class DBSCANBaselines:
             self.list_of_normed_polygons = norm_poly_dists(poly_list=list_of_polygons, des_dist=des_dist)
             self.list_of_interline_distances = list_of_interline_distances
             self.avg = average_interline_distance
-            self.eps = bounding_box_epsilon
 
         self.fac = rectangle_interline_factor
         self.min_polygons_for_cluster = min_polygons_for_cluster
@@ -261,82 +257,53 @@ class DBSCANBaselines:
         """
         neighbors = []
 
-        for i, normed_polygon_i in enumerate(self.list_of_normed_polygons):
-            if i == polygon_index:
-                continue
-
-            bool_inter = DBSCANBaselines.neighborhood(self, polygon1_index=polygon_index, polygon2_index=i)
-            if bool_inter:
-                neighbors.append(i)
-
-        return neighbors
-
-    def neighborhood(self, polygon1_index, polygon2_index):
-        """ Decides, whether two given polygons "polygon1_index" and "polygon2_index" lie within a defined neighborhood.
-
-        :param polygon1_index: index of the first polygon
-        :param polygon2_index: index of the second polygon
-        :return: True or False
-        """
-        # computation of two different rectangles for polygon 1
-        poly1 = self.list_of_normed_polygons[polygon1_index]
-        int_dis1 = self.list_of_interline_distances[polygon1_index]
+        # computation of an extended bounding rectangle for "polygon_index"
+        poly1 = self.list_of_normed_polygons[polygon_index]
+        int_dis1 = self.list_of_interline_distances[polygon_index]
 
         if not 0.5 * self.avg <= int_dis1 <= 1.5 * self.avg:
             int_dis1 = self.avg
 
-        if poly1.bounds.width > 2 * self.eps:
-            rec1 = Rectangle(int(poly1.bounds.x + self.eps), int(poly1.bounds.y - self.eps),
-                             int(poly1.bounds.width - 2 * self.eps), int(poly1.bounds.height + 2 * self.eps))
-        else:
-            rec1 = Rectangle(int(poly1.bounds.x), int(poly1.bounds.y - self.eps),
-                             int(poly1.bounds.width), int(poly1.bounds.height + 2 * self.eps))
+        rec1_expanded = Rectangle(int(poly1.bounds.x), int(poly1.bounds.y - self.fac * int_dis1),
+                                  int(poly1.bounds.width), int(poly1.bounds.height + 2 * self.fac * int_dis1))
 
-        rec1_expanded = \
-            Rectangle(int(poly1.bounds.x - self.eps), int(poly1.bounds.y - self.fac * int_dis1),
-                      int(poly1.bounds.width + 2 * self.eps), int(poly1.bounds.height + 2 * self.fac * int_dis1))
+        for i, normed_polygon_i in enumerate(self.list_of_normed_polygons):
+            if i == polygon_index:
+                continue
 
-        # computation of two different rectangles for polygon 2
-        poly2 = self.list_of_normed_polygons[polygon2_index]
-        int_dis2 = self.list_of_interline_distances[polygon2_index]
+            # computation of an extended bounding rectangle for polygon 2
+            poly2 = self.list_of_normed_polygons[i]
+            int_dis2 = self.list_of_interline_distances[i]
 
-        if not 0.5 * self.avg <= int_dis2 <= 1.5 * self.avg:
-            int_dis2 = self.avg
+            if not 0.5 * self.avg <= int_dis2 <= 1.5 * self.avg:
+                int_dis2 = self.avg
 
-        if poly2.bounds.width > 2 * self.eps:
-            rec2 = Rectangle(int(poly2.bounds.x + self.eps), int(poly2.bounds.y - self.eps),
-                             int(poly2.bounds.width - 2 * self.eps), int(poly2.bounds.height + 2 * self.eps))
-        else:
-            rec2 = Rectangle(int(poly2.bounds.x), int(poly2.bounds.y - self.eps),
-                             int(poly2.bounds.width), int(poly2.bounds.height + 2 * self.eps))
+            rec2_expanded = Rectangle(int(poly2.bounds.x), int(poly2.bounds.y - self.fac * int_dis2),
+                                      int(poly2.bounds.width), int(poly2.bounds.height + 2 * self.fac * int_dis2))
 
-        rec2_expanded = \
-            Rectangle(int(poly2.bounds.x - self.eps), int(poly2.bounds.y - self.fac * int_dis2),
-                      int(poly2.bounds.width + 2 * self.eps), int(poly2.bounds.height + 2 * self.fac * int_dis2))
+            # computation of intersection rectangles
+            intersection_1to2 = rec1_expanded.intersection(poly2.bounds)
+            intersection_2to1 = rec2_expanded.intersection(poly1.bounds)
 
-        # computation of intersection rectangles
-        intersection_1to2 = rec1_expanded.intersection(rec2)
-        intersection_2to1 = rec2_expanded.intersection(rec1)
+            # computation of intersection surfaces
+            if intersection_1to2.width >= 0 and intersection_1to2.height >= 0:
+                intersection1to2_surface = (intersection_1to2.width + 1) * (intersection_1to2.height + 1)
+            else:
+                intersection1to2_surface = 0
 
-        # computation of intersection surfaces
-        if intersection_1to2.width > 0 and intersection_1to2.height > 0:
-            intersection1to2_surface = intersection_1to2.width * intersection_1to2.height
-        else:
-            intersection1to2_surface = 0
+            if intersection_2to1.width >= 0 and intersection_2to1.height >= 0:
+                intersection2to1_surface = (intersection_2to1.width + 1) * (intersection_2to1.height + 1)
+            else:
+                intersection2to1_surface = 0
 
-        if intersection_2to1.width > 0 and intersection_2to1.height > 0:
-            intersection2to1_surface = intersection_2to1.width * intersection_2to1.height
-        else:
-            intersection2to1_surface = 0
+            # computation of rectangle surfaces
+            rec1_surface = (poly1.bounds.height + 1) * (poly1.bounds.width + 1)
+            rec2_surface = (poly2.bounds.height + 1) * (poly2.bounds.width + 1)
 
-        # computation of rectangle surfaces
-        rec1_surface = rec1.height * rec1.width
-        rec2_surface = rec2.height * rec2.width
+            if intersection1to2_surface >= 0.95 * rec2_surface or intersection2to1_surface >= 0.95 * rec1_surface:
+                neighbors.append(i)
 
-        if intersection1to2_surface >= rec2_surface or intersection2to1_surface >= rec1_surface:
-            return True
-
-        return False
+        return neighbors
 
     def get_cluster_of_polygons(self):
         """ Calculates the cluster labels for the polygons.

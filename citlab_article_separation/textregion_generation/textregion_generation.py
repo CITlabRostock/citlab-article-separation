@@ -5,7 +5,7 @@ import numpy as np
 from argparse import ArgumentParser
 
 from citlab_python_util.parser.xml.page.page import Page
-from citlab_python_util.parser.xml.page.page_objects import TextRegion
+from citlab_python_util.parser.xml.page.page_objects import TextRegion, Points
 
 from citlab_python_util.geometry.util import alpha_shape
 from citlab_python_util.geometry.polygon import norm_poly_dists
@@ -54,6 +54,23 @@ def get_data_from_pagexml(path_to_pagexml, des_dist=50, max_d=500, use_java_code
 
     txtline_dict = {}
     for i, txtline in enumerate(lst_of_txtlines_adjusted):
+        # check the surrounding polygon of the text line
+        if txtline.surr_p is None:
+            normed_polygon = lst_of_normed_polygons[i]
+
+            x_points_shifted = [x + 1 for x in normed_polygon.x_points]
+            # y values are shifted upwards by at least one pixel
+            y_shift = max(int(0.95 * lst_of_intdists[i]), 1)
+            y_points_shifted = [y - y_shift for y in normed_polygon.y_points]
+
+            sp_points = list(zip(normed_polygon.x_points + x_points_shifted[::-1],
+                                 normed_polygon.y_points + y_points_shifted[::-1]))
+
+            for article in art_txtlines_dict:
+                for reference_txtline in art_txtlines_dict[article]:
+                    if reference_txtline.id == txtline.id:
+                        reference_txtline.surr_p = Points(sp_points)
+
         txtline_dict.update({txtline.id: (lst_of_normed_polygons[i], lst_of_intdists[i])})
 
     return art_txtlines_dict, txtline_dict
@@ -127,11 +144,13 @@ def create_text_regions(art_txtlines_dict, txtline_dict, alpha=75):
             for txtline in art_txtlines_dict[article_id]:
                 if txtline.id in txtline_dict:
                     normed_polygon = txtline_dict[txtline.id][0]
+
+                    x_points_shifted = [x + 1 for x in normed_polygon.x_points]
                     # y values are shifted upwards by at least one pixel
                     y_shift = max(int(0.95 * txtline_dict[txtline.id][1]), 1)
-
                     y_points_shifted = [y - y_shift for y in normed_polygon.y_points]
-                    np_points = list(zip(normed_polygon.x_points + normed_polygon.x_points,
+
+                    np_points = list(zip(normed_polygon.x_points + x_points_shifted,
                                          normed_polygon.y_points + y_points_shifted))
 
                     # alpha shape boundary of the text line as integer points
@@ -149,11 +168,13 @@ def create_text_regions(art_txtlines_dict, txtline_dict, alpha=75):
                 if txtline.id in txtline_dict:
                     lst_of_txtlines.append(txtline)
                     normed_polygon = txtline_dict[txtline.id][0]
+
+                    x_points_shifted = [x + 1 for x in normed_polygon.x_points]
                     # y values are shifted upwards by at least one pixel
                     y_shift = max(int(0.95 * txtline_dict[txtline.id][1]), 1)
-
                     y_points_shifted = [y - y_shift for y in normed_polygon.y_points]
-                    np_points += list(zip(normed_polygon.x_points + normed_polygon.x_points,
+
+                    np_points += list(zip(normed_polygon.x_points + x_points_shifted,
                                           normed_polygon.y_points + y_points_shifted))
 
             # alpha shape boundary of the text lines as integer points

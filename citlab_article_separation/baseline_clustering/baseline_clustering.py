@@ -42,14 +42,14 @@ def save_results_in_pagexml(path_to_pagexml, list_of_txtlines, list_of_txtline_l
     :param list_of_txtline_labels: list of article tags of the baselines
     """
     page_file = Page(path_to_pagexml)
+    none_ids = max(list_of_txtline_labels) + 1
 
     for txtline_index, txtline in enumerate(list_of_txtlines):
         # existing article tags are overwritten!
         if list_of_txtline_labels[txtline_index] == -1:
-            txt_article_id = txtline.get_article_id()
-
-            if txt_article_id is not None:
-                txtline.set_article_id(article_id=None)
+            # each None baseline get a unique article ID
+            txtline.set_article_id(article_id="a" + str(none_ids))
+            none_ids += 1
         else:
             txtline.set_article_id(article_id="a" + str(list_of_txtline_labels[txtline_index]))
 
@@ -57,16 +57,14 @@ def save_results_in_pagexml(path_to_pagexml, list_of_txtlines, list_of_txtline_l
     page_file.write_page_xml(path_to_pagexml)
 
 
-def cluster_baselines_dbscan(list_of_polygons, min_polygons_for_cluster=1,  min_polygons_for_article=2,
-                             bounding_box_epsilon=8, rectangle_interline_factor=1.5,
+def cluster_baselines_dbscan(list_of_polygons, min_polygons_for_cluster=1, min_polygons_for_article=2,
+                             rectangle_interline_factor=1.25,
                              des_dist=5, max_d=500, use_java_code=True, target_average_interline_distance=50):
     """
     :param list_of_polygons: list_of_polygons
     :param min_polygons_for_cluster: minimum number of required polygons in neighborhood to form a cluster
     :param min_polygons_for_article: minimum number of required polygons forming an article
 
-    :param bounding_box_epsilon: additional width and height value to calculate the bounding boxes of the polygons
-                                 during the clustering progress
     :param rectangle_interline_factor: multiplication factor to calculate the height of the rectangles during the
                                        clustering progress with the help of the interline distances
 
@@ -82,7 +80,7 @@ def cluster_baselines_dbscan(list_of_polygons, min_polygons_for_cluster=1,  min_
         = dbscan_baselines.DBSCANBaselines \
         (list_of_polygons=list_of_polygons,
          min_polygons_for_cluster=min_polygons_for_cluster, min_polygons_for_article=min_polygons_for_article,
-         bounding_box_epsilon=bounding_box_epsilon, rectangle_interline_factor=rectangle_interline_factor,
+         rectangle_interline_factor=rectangle_interline_factor,
          des_dist=des_dist, max_d=max_d, use_java_code=use_java_code,
          target_average_interline_distance=target_average_interline_distance)
 
@@ -104,10 +102,7 @@ if __name__ == "__main__":
     parser.add_argument('--min_polygons_for_article', type=int, default=2,
                         help="minimum number of required polygons forming an article")
 
-    parser.add_argument('--bounding_box_epsilon', type=int, default=8,
-                        help="additional width and height value to calculate the bounding boxes of the polygons during "
-                             "the clustering progress")
-    parser.add_argument('--rectangle_interline_factor', type=float, default=1.5,
+    parser.add_argument('--rectangle_interline_factor', type=float, default=1.25,
                         help="multiplication factor to calculate the height of the rectangles during the clustering "
                              "progress with the help of the interline distances")
 
@@ -132,7 +127,6 @@ if __name__ == "__main__":
     article_id_list = cluster_baselines_dbscan(list_of_polygons=lst_polygons,
                                                min_polygons_for_cluster=flags.min_polygons_for_cluster,
                                                min_polygons_for_article=flags.min_polygons_for_article,
-                                               bounding_box_epsilon=flags.bounding_box_epsilon,
                                                rectangle_interline_factor=flags.rectangle_interline_factor,
                                                des_dist=flags.des_dist, max_d=flags.max_d,
                                                use_java_code=flags.use_java_code,
