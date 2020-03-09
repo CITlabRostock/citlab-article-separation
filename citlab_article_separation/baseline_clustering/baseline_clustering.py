@@ -42,14 +42,11 @@ def save_results_in_pagexml(path_to_pagexml, list_of_txtlines, list_of_txtline_l
     :param list_of_txtline_labels: list of article tags of the baselines
     """
     page_file = Page(path_to_pagexml)
-    none_ids = max(list_of_txtline_labels) + 1
 
     for txtline_index, txtline in enumerate(list_of_txtlines):
         # existing article tags are overwritten!
         if list_of_txtline_labels[txtline_index] == -1:
-            # each None baseline get a unique article ID
-            txtline.set_article_id(article_id="a" + str(none_ids))
-            none_ids += 1
+            txtline.set_article_id(article_id=None)
         else:
             txtline.set_article_id(article_id="a" + str(list_of_txtline_labels[txtline_index]))
 
@@ -57,7 +54,7 @@ def save_results_in_pagexml(path_to_pagexml, list_of_txtlines, list_of_txtline_l
     page_file.write_page_xml(path_to_pagexml)
 
 
-def cluster_baselines_dbscan(list_of_polygons, min_polygons_for_cluster=1, min_polygons_for_article=2,
+def cluster_baselines_dbscan(list_of_polygons, min_polygons_for_cluster=2, min_polygons_for_article=1,
                              rectangle_interline_factor=1.25,
                              des_dist=5, max_d=500, use_java_code=True, target_average_interline_distance=50):
     """
@@ -97,9 +94,9 @@ if __name__ == "__main__":
     parser.add_argument('--path_to_xml_file', type=str, required=True,
                         help="path to the page xml file to be processed")
 
-    parser.add_argument('--min_polygons_for_cluster', type=int, default=1,
+    parser.add_argument('--min_polygons_for_cluster', type=int, default=2,
                         help="minimum number of required polygons in neighborhood to form a cluster")
-    parser.add_argument('--min_polygons_for_article', type=int, default=2,
+    parser.add_argument('--min_polygons_for_article', type=int, default=1,
                         help="minimum number of required polygons forming an article")
 
     parser.add_argument('--rectangle_interline_factor', type=float, default=1.25,

@@ -45,9 +45,9 @@ if __name__ == "__main__":
     parser.add_argument('--path_to_xml_lst', type=str, required=True,
                         help="path to the lst file containing the file paths of the page xml's to be processed")
 
-    parser.add_argument('--min_polygons_for_cluster', type=int, default=1,
+    parser.add_argument('--min_polygons_for_cluster', type=int, default=2,
                         help="minimum number of required polygons in neighborhood to form a cluster")
-    parser.add_argument('--min_polygons_for_article', type=int, default=2,
+    parser.add_argument('--min_polygons_for_article', type=int, default=1,
                         help="minimum number of required polygons forming an article")
 
     parser.add_argument('--rectangle_interline_factor', type=float, default=1.25,

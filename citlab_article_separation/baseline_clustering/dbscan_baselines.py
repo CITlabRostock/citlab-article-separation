@@ -112,7 +112,7 @@ def get_list_of_interline_distances(lst_of_polygons, des_dist=5, max_d=500, use_
 
 class DBSCANBaselines:
 
-    def __init__(self, list_of_polygons, min_polygons_for_cluster=1, min_polygons_for_article=2,
+    def __init__(self, list_of_polygons, min_polygons_for_cluster=2, min_polygons_for_article=1,
                  rectangle_interline_factor=1.25,
                  des_dist=5, max_d=500, use_java_code=True, target_average_interline_distance=50):
         """ Initialization of the clustering process.
@@ -239,12 +239,13 @@ class DBSCANBaselines:
 
                 # if "neighbor_index" doesn't have enough neighbors, don't queue up it's neighbors as expansion polygons
 
-            # if another center polygon is in our neighborhood, merge the two clusters
-            elif self.list_of_labels[neighbor_index] != this_label and self.list_if_center[neighbor_index]:
-                self.list_of_labels = \
-                    [self.list_of_labels[neighbor_index] if x == this_label else x for x in self.list_of_labels]
-
-                this_label = self.list_of_labels[neighbor_index]
+            # # only necessary, if distance measure is not symmetric!
+            # # if another center polygon is in our neighborhood, merge the two clusters
+            # elif self.list_of_labels[neighbor_index] != this_label and self.list_if_center[neighbor_index]:
+            #     self.list_of_labels = \
+            #         [self.list_of_labels[neighbor_index] if x == this_label else x for x in self.list_of_labels]
+            #
+            #     this_label = self.list_of_labels[neighbor_index]
 
             # next point in the FIFO queue
             i += 1
@@ -310,12 +311,21 @@ class DBSCANBaselines:
 
         :return: list with article labels for each polygon
         """
-        # articles with less than "min_polygons_for_article" polygons belong to the "noise" class
-        counter_dict = collections.Counter(self.list_of_labels)
+        if self.min_polygons_for_article == 1:
+            # every polygon, even the "noise" polygons, belongs to an article
+            noise_id = max(self.list_of_labels) + 1
 
-        for label in counter_dict:
-            if counter_dict[label] < self.min_polygons_for_article and label != -1:
-                self.list_of_labels = [-1 if x == label else x for x in self.list_of_labels]
+            for index, lable in enumerate(self.list_of_labels):
+                if lable == -1:
+                    self.list_of_labels[index] = noise_id
+                    noise_id += 1
+        else:
+            # articles with less than "min_polygons_for_article" polygons belong to the "noise" class
+            counter_dict = collections.Counter(self.list_of_labels)
+
+            for label in counter_dict:
+                if counter_dict[label] < self.min_polygons_for_article and label != -1:
+                    self.list_of_labels = [-1 if x == label else x for x in self.list_of_labels]
 
         counter_dict = collections.Counter(self.list_of_labels)
         print("Number of detected articles (inclusive the \"noise\" class): {}".format(len(counter_dict)))
