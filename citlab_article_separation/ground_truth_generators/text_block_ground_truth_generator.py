@@ -121,7 +121,7 @@ class TextBlockGroundTruthGenerator(GroundTruthGenerator):
         try:
             return [regions["SeparatorRegion"] for regions in self.regions_list]
         except KeyError:
-            logger.debug(f"No SeparatorRegion for PAGE '{self.page_path_lst[i]}' found.")
+            logger.debug(f"No SeparatorRegions all PAGEs found.")
             return []
 
 
