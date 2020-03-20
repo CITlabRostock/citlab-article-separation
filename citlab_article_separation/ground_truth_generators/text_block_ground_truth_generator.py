@@ -118,7 +118,10 @@ class TextBlockGroundTruthGenerator(GroundTruthGenerator):
         return image_regions_list
 
     def get_separator_regions_list(self):
-        return [regions["SeparatorRegion"] for regions in self.regions_list]
+        try:
+            return [regions["SeparatorRegion"] for regions in self.regions_list]
+        except KeyError:
+            logger.debug(f"No SeparatorRegion for PAGE '{self.page_path_lst[i]}' found.")
 
 
 if __name__ == '__main__':
