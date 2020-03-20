@@ -1,3 +1,4 @@
+import argparse
 import logging
 
 import cv2
@@ -10,7 +11,8 @@ logging.basicConfig(level=logging.WARNING)
 
 
 class TextBlockGroundTruthGenerator(GroundTruthGenerator):
-    def __init__(self, path_to_img_lst, fixed_height=0, scaling_factor=1.0, use_bounding_box=False, use_min_area_rect=False):
+    def __init__(self, path_to_img_lst, fixed_height=0, scaling_factor=1.0, use_bounding_box=False,
+                 use_min_area_rect=False):
         super().__init__(path_to_img_lst, fixed_height, scaling_factor)
         self.create_page_objects()
         self.regions_list = [page.get_regions() for page in self.page_object_lst]
@@ -30,13 +32,13 @@ class TextBlockGroundTruthGenerator(GroundTruthGenerator):
 
             # tb_outlines_gt_img = self.create_region_gt_img(self.text_regions_list[i], img_width, img_height, fill=False,
             #                                                scaling_factor=sc_factor)
-            # tb_filled_gt_img = self.create_region_gt_img(self.text_regions_list[i], img_width, img_height, fill=True,
-            #                                              scaling_factor=sc_factor)
+            tb_filled_gt_img = self.create_region_gt_img(self.text_regions_list[i], img_width, img_height, fill=True,
+                                                         scaling_factor=sc_factor)
             # image_region_gt_img = self.create_region_gt_img(self.image_regions_list[i], img_width, img_height, fill=True,
             #                                                 scaling_factor=sc_factor)
-            sep_region_gt_img = self.create_region_gt_img(self.separator_regions_list[i], img_width, img_height,
-                                                          fill=True, scaling_factor=sc_factor)
-            gt_channels = [sep_region_gt_img]
+            # sep_region_gt_img = self.create_region_gt_img(self.separator_regions_list[i], img_width, img_height,
+            #                                               fill=True, scaling_factor=sc_factor)
+            gt_channels = [tb_filled_gt_img]
             # gt_channels = [tb_outlines_gt_img, tb_filled_gt_img, sep_region_gt_img]
             # gt_channels = [tb_outlines_gt_img, tb_filled_gt_img, image_region_gt_img, sep_region_gt_img]
 
@@ -120,9 +122,17 @@ class TextBlockGroundTruthGenerator(GroundTruthGenerator):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--image_list', type=str)
+    parser.add_argument('--save_dir', type=str)
+    parser.add_argument('--fixed_height', type=int, default=0)
+    parser.add_argument('--scaling_factor', type=float, default=1.0)
+
+    args = parser.parse_args()
+
     tb_generator = TextBlockGroundTruthGenerator(
-        '/home/max/devel/projects/python/article_separation/lists/textblock_detection/onb_newspaper_tb.lst',
-        use_bounding_box=False, use_min_area_rect=False, fixed_height=5300)
+        args.image_list, use_bounding_box=False, use_min_area_rect=False, fixed_height=args.fixed_height,
+        scaling_factor=args.scaling_factor)
     # print(tb_generator.image_regions_list)
     # print(tb_generator.text_regions_list)
     # tb_generator.create_grey_images()
@@ -141,4 +151,4 @@ if __name__ == '__main__':
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
 
-    tb_generator.run_ground_truth_generation('./data/rot_test/')
+    tb_generator.run_ground_truth_generation(args.save_dir)

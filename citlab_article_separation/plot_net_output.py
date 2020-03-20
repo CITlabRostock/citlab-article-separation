@@ -130,6 +130,7 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                         plt.show()
                         exit(1)
 
+
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--path_to_tf_graph', default='', type=str,
