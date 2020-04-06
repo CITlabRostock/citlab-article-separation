@@ -3,6 +3,7 @@ import logging
 
 import cv2
 import numpy as np
+from citlab_python_util.parser.xml.page import page_constants
 
 from citlab_article_separation.ground_truth_generators.ground_truth_generator_base import GroundTruthGenerator
 
@@ -73,11 +74,11 @@ class TextBlockGroundTruthGenerator(GroundTruthGenerator):
                                                closed=True)
         return region_gt_img
 
-    def get_valid_text_regions(self, intersection_thresh=20):
+    def get_valid_text_regions(self, intersection_thresh=20, region_type='paragraph'):
         valid_text_regions_list = []
         for i, regions in enumerate(self.regions_list):
             valid_text_regions = []
-            text_regions = regions["TextRegion"]
+            text_regions = [region for region in regions["TextRegion"] if region.region_type == region_type]
             image_regions = self.image_regions_list[i]
             if not image_regions:
                 valid_text_regions_list.append(text_regions)
@@ -100,29 +101,57 @@ class TextBlockGroundTruthGenerator(GroundTruthGenerator):
 
         return valid_text_regions_list
 
+    def get_table_regions_list(self):
+        return self.get_regions_list([page_constants.sTABLEREGION])
+
+    def get_advert_regions_list(self):
+        return self.get_regions_list([page_constants.sADVERTREGION])
+
     def get_image_regions_list(self):
-        image_regions_list = []
-        for i, regions in enumerate(self.regions_list):
-            image_regions = []
-            try:
-                image_regions += regions["GraphicRegion"]
-            except KeyError:
-                logger.debug(f"No GraphicRegion for PAGE '{self.page_path_lst[i]}' found.")
-            try:
-                image_regions += regions["ImageRegions"]
-            except KeyError:
-                logger.debug(f"No ImageRegion for PAGE '{self.page_path_lst[i]}' found.")
-
-            image_regions_list.append(image_regions)
-
-        return image_regions_list
+        return self.get_regions_list([page_constants.sGRAPHICREGION, page_constants.sIMAGEREGION])
 
     def get_separator_regions_list(self):
-        try:
-            return [regions["SeparatorRegion"] for regions in self.regions_list]
-        except KeyError:
-            logger.debug(f"No SeparatorRegions all PAGEs found.")
-            return []
+        return self.get_regions_list([page_constants.sSEPARATORREGION])
+
+    def get_regions_list(self, region_types):
+        region_list_by_type = []
+        for i, page_regions in enumerate(self.regions_list):
+            regions = []
+            for region_type in region_types:
+                try:
+                    regions += page_regions[region_type]
+                except KeyError:
+                    logger.debug("No {} for PAGE {}.".format(region_type, self.page_path_lst[i]))
+                region_list_by_type.append(regions)
+
+        return region_list_by_type
+
+    def get_title_regions_list(self, title_region_types):
+        """ Valid title_region_types are ["headline", "subheadline", "publishing_stmt", "motto", "other" ]
+        """
+
+        return self.get_heading_regions_list('title', title_region_types)
+
+    def get_classic_heading_regions_list(self, heading_region_types):
+        """ Valid class_heading_region_types are ["overline", "", "subheadline", "author", "other"]
+        where "" represents the title.
+        """
+        return self.get_heading_regions_list('heading', heading_region_types)
+
+    def get_heading_regions_list(self, custom_structure_type, custom_structure_subtypes):
+        valid_text_regions = self.get_valid_text_regions(region_type=page_constants.TextRegionTypes.sHEADING)
+
+        region_list_by_type = []
+        for page_text_regions in valid_text_regions:
+            regions = []
+            for page_text_region in page_text_regions:
+                custom_dict_struct = page_text_region.custom['structure']
+                for custom_struct_subtype in custom_structure_subtypes:
+                    if custom_struct_subtype == '' and custom_dict_struct['type'] == custom_structure_type and 'subtype' not in custom_dict_struct.keys():
+                        regions += page_text_region
+                    elif custom_dict_struct['type'] == custom_structure_type and custom_dict_struct['subtype'] == custom_struct_subtype:
+                        regions += page_text_region
+            region_list_by_type.append(regions)
 
 
 if __name__ == '__main__':
