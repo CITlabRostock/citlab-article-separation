@@ -142,6 +142,8 @@ class TextBlockGroundTruthGenerator(GroundTruthGenerator):
         valid_text_regions = self.get_valid_text_regions(region_type=page_constants.TextRegionTypes.sHEADING)
 
         region_list_by_type = []
+        if len(valid_text_regions) == 0:
+            region_list_by_type.append([])
         for page_text_regions in valid_text_regions:
             regions = []
             for page_text_region in page_text_regions:
