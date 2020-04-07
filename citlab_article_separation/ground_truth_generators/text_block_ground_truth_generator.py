@@ -150,10 +150,12 @@ class TextBlockGroundTruthGenerator(GroundTruthGenerator):
                 custom_dict_struct = page_text_region.custom['structure']
                 for custom_struct_subtype in custom_structure_subtypes:
                     if custom_struct_subtype == '' and custom_dict_struct['type'] == custom_structure_type and 'subtype' not in custom_dict_struct.keys():
-                        regions += page_text_region
+                        regions.append(page_text_region)
                     elif custom_dict_struct['type'] == custom_structure_type and custom_dict_struct['subtype'] == custom_struct_subtype:
-                        regions += page_text_region
+                        regions.append(page_text_region)
             region_list_by_type.append(regions)
+
+        return region_list_by_type
 
 
 if __name__ == '__main__':

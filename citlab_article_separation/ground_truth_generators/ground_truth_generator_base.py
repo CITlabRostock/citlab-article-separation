@@ -164,9 +164,12 @@ class GroundTruthGenerator(ABC):
 
     def make_disjoint_all(self):
         for i, gt_imgs in enumerate(self.gt_imgs_lst):
+            gt_img_compare = gt_imgs[0]
             changed_gt_imgs = [gt_imgs[0]]
             for j in range(len(gt_imgs) - 1):
-                changed_gt_imgs.append(self.make_disjoint(gt_img_compare=gt_imgs[j], gt_img_to_change=gt_imgs[j + 1]))
+                changed_gt_imgs.append(self.make_disjoint(gt_img_compare=gt_img_compare, gt_img_to_change=gt_imgs[j + 1]))
+                gt_img_compare = np.bitwise_or(gt_img_compare, gt_imgs[j + 1])
+
             self.gt_imgs_lst[i] = tuple(changed_gt_imgs)
 
     def get_image_resolutions_from_page_objects(self):
