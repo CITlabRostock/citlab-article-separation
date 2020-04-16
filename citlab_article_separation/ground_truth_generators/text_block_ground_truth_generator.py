@@ -134,7 +134,7 @@ class TextBlockGroundTruthGenerator(GroundTruthGenerator):
 
     def get_classic_heading_regions_list(self, heading_region_types):
         """ Valid class_heading_region_types are ["overline", "", "subheadline", "author", "other"]
-        where "" represents the title.
+        where "" represents the title (can also be "title").
         """
         return self.get_heading_regions_list('heading', heading_region_types)
 

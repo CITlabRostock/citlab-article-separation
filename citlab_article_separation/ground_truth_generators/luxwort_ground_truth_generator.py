@@ -16,7 +16,7 @@ class LuxwortGroundTruthGenerator(TextBlockGroundTruthGenerator):
         # self.title_publ_stmt_regions = self.get_title_regions_list(["publishing_stmt"])
         self.title_other_regions = self.get_title_regions_list(["other", "publishing_stmt"])
 
-        self.heading_title_regions = self.get_classic_heading_regions_list([""])
+        self.heading_title_regions = self.get_classic_heading_regions_list(["", "title"])
         self.heading_overline_regions = self.get_classic_heading_regions_list(["overline"])
         self.heading_subheadline_regions = self.get_classic_heading_regions_list(["subheadline"])
         self.heading_author_regions = self.get_classic_heading_regions_list(["author"])
