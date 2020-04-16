@@ -13,8 +13,8 @@ class LuxwortGroundTruthGenerator(TextBlockGroundTruthGenerator):
 
         self.title_headline_regions = self.get_title_regions_list(["headline"])
         self.title_subheadline_regions = self.get_title_regions_list(["subheadline", "motto"])
-        self.title_publ_stmt_regions = self.get_title_regions_list(["publishing_stmt"])
-        self.title_other_regions = self.get_title_regions_list(["other"])
+        # self.title_publ_stmt_regions = self.get_title_regions_list(["publishing_stmt"])
+        self.title_other_regions = self.get_title_regions_list(["other", "publishing_stmt"])
 
         self.heading_title_regions = self.get_classic_heading_regions_list([""])
         self.heading_overline_regions = self.get_classic_heading_regions_list(["overline"])
@@ -37,8 +37,9 @@ class LuxwortGroundTruthGenerator(TextBlockGroundTruthGenerator):
                                                               fill=True, scaling_factor=sc_factor)
             title_subheadline_gt_img = self.create_region_gt_img(self.title_subheadline_regions[i], img_width,
                                                                  img_height, fill=True, scaling_factor=sc_factor)
-            title_publ_stmt_gt_img = self.create_region_gt_img(self.title_publ_stmt_regions[i], img_width, img_height,
-                                                               fill=True, scaling_factor=sc_factor)
+            # Put Publishing Statement into the other class
+            # title_publ_stmt_gt_img = self.create_region_gt_img(self.title_publ_stmt_regions[i], img_width, img_height,
+            #                                                    fill=True, scaling_factor=sc_factor)
             title_other_gt_img = self.create_region_gt_img(self.title_other_regions[i], img_width, img_height,
                                                            fill=True, scaling_factor=sc_factor)
             heading_title_gt_img = self.create_region_gt_img(self.heading_title_regions[i], img_width, img_height,
