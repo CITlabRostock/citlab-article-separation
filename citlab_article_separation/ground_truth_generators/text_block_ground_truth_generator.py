@@ -138,6 +138,9 @@ class TextBlockGroundTruthGenerator(GroundTruthGenerator):
         """
         return self.get_heading_regions_list('heading', heading_region_types)
 
+    def get_caption_text_regions(self):
+        return self.get_valid_text_regions(region_type=page_constants.TextRegionTypes.sCAPTION)
+
     def get_heading_regions_list(self, custom_structure_type, custom_structure_subtypes):
         valid_text_regions = self.get_valid_text_regions(region_type=page_constants.TextRegionTypes.sHEADING)
 
