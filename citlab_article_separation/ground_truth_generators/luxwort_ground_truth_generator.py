@@ -55,8 +55,8 @@ class LuxwortGroundTruthGenerator(TextBlockGroundTruthGenerator):
             text_block_gt_img = self.create_region_gt_img(self.text_regions_list[i], img_width, img_height, fill=True,
                                                           scaling_factor=sc_factor)
 
-            gt_channels = [table_gt_img, advert_gt_img, title_headline_gt_img, title_subheadline_gt_img,
-                           title_publ_stmt_gt_img, title_other_gt_img, heading_title_gt_img, heading_overline_gt_img,
+            gt_channels = [table_gt_img, advert_gt_img, title_headline_gt_img, title_subheadline_gt_img, # title_publ_stmt_gt_img,
+                           title_other_gt_img, heading_title_gt_img, heading_overline_gt_img,
                            heading_subheadline_gt_img, heading_author_gt_img, heading_other_gt_img, text_block_gt_img]
 
             other_gt_img = self.create_other_ground_truth_image(*gt_channels)
