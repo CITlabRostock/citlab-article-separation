@@ -19,12 +19,11 @@ class BNLGroundTruthGenerator(TextBlockGroundTruthGenerator):
         self.title_other_regions = self.get_title_regions_list(["other", "publishing_stmt"])
 
         self.heading_title_regions = self.get_classic_heading_regions_list(["", "title"])
+        self.heading_subheadline_regions = self.get_classic_heading_regions_list(["subheadline"])
         self.heading_overline_regions = self.get_classic_heading_regions_list(["overline"])
         self.heading_author_regions = self.get_classic_heading_regions_list(["author"])
         self.heading_other_regions = self.get_classic_heading_regions_list(["other"])
 
-        if self.issue_name == "luxwort":
-            self.heading_subheadline_regions = self.get_classic_heading_regions_list(["subheadline"])
         if self.issue_name == "independance_lux":
             self.caption_regions = self.get_caption_text_regions()
 
@@ -41,6 +40,8 @@ class BNLGroundTruthGenerator(TextBlockGroundTruthGenerator):
                                                       scaling_factor=sc_factor)
             title_headline_gt_img = self.create_region_gt_img(self.title_headline_regions[i], img_width, img_height,
                                                               fill=True, scaling_factor=sc_factor)
+            title_subheadline_gt_img = self.create_region_gt_img(self.title_subheadline_regions[i], img_width,
+                                                                 img_height, fill=True, scaling_factor=sc_factor)
             # Put Publishing Statement into the other class
             # title_publ_stmt_gt_img = self.create_region_gt_img(self.title_publ_stmt_regions[i], img_width, img_height,
             #                                                    fill=True, scaling_factor=sc_factor)
@@ -60,8 +61,6 @@ class BNLGroundTruthGenerator(TextBlockGroundTruthGenerator):
                                                           scaling_factor=sc_factor)
 
             if self.issue_name == "luxwort":
-                title_subheadline_gt_img = self.create_region_gt_img(self.title_subheadline_regions[i], img_width,
-                                                                     img_height, fill=True, scaling_factor=sc_factor)
                 gt_channels = [table_gt_img, advert_gt_img, title_headline_gt_img, title_subheadline_gt_img, # title_publ_stmt_gt_img,
                                title_other_gt_img, heading_title_gt_img, heading_overline_gt_img,
                                heading_subheadline_gt_img, heading_author_gt_img, heading_other_gt_img, text_block_gt_img]
