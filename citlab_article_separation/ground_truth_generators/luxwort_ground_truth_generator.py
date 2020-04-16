@@ -71,13 +71,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--image_list', type=str)
     parser.add_argument('--save_dir', type=str)
-    parser.add_argument('--fixed_height', type=int, default=0)
+    parser.add_argument('--max_height', type=int, default=0)
+    parser.add_argument('--max_width', type=int, default=0)
     parser.add_argument('--scaling_factor', type=float, default=1.0)
 
     args = parser.parse_args()
 
     tb_generator = LuxwortGroundTruthGenerator(
-        args.image_list, use_bounding_box=False, use_min_area_rect=False, fixed_height=args.fixed_height,
-        scaling_factor=args.scaling_factor)
+        args.image_list, use_bounding_box=False, use_min_area_rect=False,
+        max_resolution=(args.max_height, args.max_width), scaling_factor=args.scaling_factor)
 
     tb_generator.run_ground_truth_generation(args.save_dir)
