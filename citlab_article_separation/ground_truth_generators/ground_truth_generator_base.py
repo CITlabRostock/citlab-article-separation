@@ -24,14 +24,14 @@ def load_image_list(path_to_img_lst):
 
 
 class GroundTruthGenerator(ABC):
-    def __init__(self, path_to_img_lst, fixed_height=0, scaling_factor=1.0):
+    def __init__(self, path_to_img_lst, max_resolution=(0, 0), scaling_factor=1.0):
         self.img_path_lst = load_image_list(path_to_img_lst)
         self.page_path_lst = self.get_page_list()
         self.page_object_lst = self.create_page_objects()
         self.img_res_lst_original = self.get_image_resolutions_from_page_objects()  # list of tuples (width, height) containing the size of the image
-        self.fixed_height = max(0, fixed_height)
-        if self.fixed_height:
-            self.scaling_factors = self.calculate_scaling_factors_from_fixed_height()
+        self.max_resolution = (max(0, max_resolution[0]), max(0, max_resolution[1]))
+        if self.max_resolution is not (0, 0):
+            self.scaling_factors = self.calculate_scaling_factors_from_max_resolution()
         else:
             sc_factor = max(0.1, scaling_factor)
             self.scaling_factors = [sc_factor] * len(self.img_path_lst)
@@ -175,7 +175,15 @@ class GroundTruthGenerator(ABC):
     def get_image_resolutions_from_page_objects(self):
         return [page.get_image_resolution() for page in self.page_object_lst]
 
-    def calculate_scaling_factors_from_fixed_height(self):
-        if not self.fixed_height:
-            logger.warning("No fixed height given, do nothing...")
-        return [self.fixed_height / img_res[1] for img_res in self.img_res_lst_original]
+    def calculate_scaling_factors_from_max_resolution(self):
+        if self.max_resolution == (0, 0):
+            logger.debug("No max resolution given, do nothing...")
+            return [1.0] * len(self.img_res_lst_original)
+
+        if self.max_resolution[0] == 0:
+            return [min(1.0, self.max_resolution[1] / img_res[0]) for img_res in self.img_res_lst_original]
+        elif self.max_resolution[1] == 0:
+            return [min(1.0, self.max_resolution[0] / img_res[1]) for img_res in self.img_res_lst_original]
+        else:
+            return [min(1.0, self.max_resolution[1] / img_res[0], self.max_resolution[0] / img_res[1]) for img_res in
+                    self.img_res_lst_original]

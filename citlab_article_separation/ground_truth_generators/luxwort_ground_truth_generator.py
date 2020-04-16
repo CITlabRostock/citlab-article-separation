@@ -5,9 +5,9 @@ from citlab_article_separation.ground_truth_generators.text_block_ground_truth_g
 
 
 class LuxwortGroundTruthGenerator(TextBlockGroundTruthGenerator):
-    def __init__(self, path_to_img_lst, fixed_height=0, scaling_factor=1.0, use_bounding_box=False,
+    def __init__(self, path_to_img_lst, max_resolution=(0, 0), scaling_factor=1.0, use_bounding_box=False,
                  use_min_area_rect=False):
-        super().__init__(path_to_img_lst, fixed_height, scaling_factor, use_bounding_box, use_min_area_rect)
+        super().__init__(path_to_img_lst, max_resolution, scaling_factor, use_bounding_box, use_min_area_rect)
         self.advert_regions = self.get_advert_regions_list()
         self.table_regions = self.get_table_regions_list()
 

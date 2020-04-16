@@ -12,9 +12,9 @@ logging.basicConfig(level=logging.WARNING)
 
 
 class TextBlockGroundTruthGenerator(GroundTruthGenerator):
-    def __init__(self, path_to_img_lst, fixed_height=0, scaling_factor=1.0, use_bounding_box=False,
+    def __init__(self, path_to_img_lst, max_resolution=(0, 0), scaling_factor=1.0, use_bounding_box=False,
                  use_min_area_rect=False):
-        super().__init__(path_to_img_lst, fixed_height, scaling_factor)
+        super().__init__(path_to_img_lst, max_resolution, scaling_factor)
         self.create_page_objects()
         self.regions_list = [page.get_regions() for page in self.page_object_lst]
         self.image_regions_list = self.get_image_regions_list()
