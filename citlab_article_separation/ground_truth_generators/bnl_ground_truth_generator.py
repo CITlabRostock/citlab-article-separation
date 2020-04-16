@@ -68,7 +68,7 @@ class BNLGroundTruthGenerator(TextBlockGroundTruthGenerator):
                 caption_region_gt_img = self.create_region_gt_img(self.caption_regions[i], img_width, img_height,
                                                                   fill=True, scaling_factor=sc_factor)
                 gt_channels = [table_gt_img, caption_region_gt_img, advert_gt_img, title_headline_gt_img, title_subheadline_gt_img,
-                               title_other_gt_img, heading_title_gt_img, heading_overline_gt_img,
+                               title_other_gt_img, heading_title_gt_img, heading_overline_gt_img, heading_subheadline_gt_img,
                                heading_author_gt_img, heading_other_gt_img, text_block_gt_img]
             else:
                 raise ValueError("Expected one of newspaper issues ['luxwort', 'independance_lux'], please try again.")
