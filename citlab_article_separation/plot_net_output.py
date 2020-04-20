@@ -73,6 +73,8 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                     scaling_factor = rescale * fixed_height / img_height
                 elif fixed_height:
                     scaling_factor = fixed_height / img_height
+                elif rescale:
+                    scaling_factor = rescale
 
                 if scaling_factor:
                     img = cv2.resize(img, None, fx=scaling_factor, fy=scaling_factor, interpolation=cv2.INTER_AREA)
@@ -117,27 +119,27 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                             plt.imshow(out_img_2d_255)
                         else:
                             plt.imshow(out_img_2d_255, cmap="gray")
-                        img_gray_2d = img_gray[0, :, :, 0]
-                        #
-                        # img_with_net_output = plot_image_with_net_output(img, out_img_2d_255)
-                        # plt.imshow(img_with_net_output, cmap='gray')
-                        # plt.imshow(img)
-                        # print(img.shape)
+                        # img_gray_2d = img_gray[0, :, :, 0]
+                        # #
+                        # # img_with_net_output = plot_image_with_net_output(img, out_img_2d_255)
+                        # # plt.imshow(img_with_net_output, cmap='gray')
+                        # # plt.imshow(img)
+                        # # print(img.shape)
+                        # # plt.show()
+                        # # plt.imshow(img_with_net_output)
+                        # img_with_ccs = plot_connected_components(img_gray_2d)
+                        # plt.imshow(img_with_ccs, cmap='gray')
                         # plt.show()
-                        # plt.imshow(img_with_net_output)
-                        img_with_ccs = plot_connected_components(img_gray_2d)
-                        plt.imshow(img_with_ccs, cmap='gray')
-                        plt.show()
-                        exit(1)
+                        # exit(1)
 
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--path_to_tf_graph', default='', type=str,
+    parser.add_argument('--path_to_tf_graph', type=str,
                         help="path to the TensorFlow .pb file containing the ARU-Net graph.")
-    parser.add_argument('--path_to_img_lst', default='', type=str,
+    parser.add_argument('--path_to_img_lst', type=str,
                         help='path to the lst file containing the file paths of the images.')
-    parser.add_argument('--save_folder', default='', type=str, help="path to the save folder")
+    parser.add_argument('--save_folder', type=str, help="path to the save folder")
     parser.add_argument('--rescale_factor', default=1.0, type=float,
                         help="rescaling the images before inputting them to the network.")
     parser.add_argument('--fixed_height', default=0, type=int,
@@ -145,9 +147,9 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if not os.path.exists(args.save_folder) or not os.path.isdir(args.save_folder):
+    if not os.path.exists(args.save_folder) or not os.path.isdir(args.save_folder) and args.save_folder:
         os.mkdir(args.save_folder)
 
     plot_net_output(args.path_to_tf_graph, args.path_to_img_lst, args.save_folder, rescale=args.rescale_factor,
                     fixed_height=args.fixed_height, plot_with_gt=False, plot_with_img=True,
-                    mask_threshold=False, show_plot=False)
+                    mask_threshold=False, show_plot=True)

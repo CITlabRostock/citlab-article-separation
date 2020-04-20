@@ -185,5 +185,5 @@ class GroundTruthGenerator(ABC):
         elif self.max_resolution[1] == 0:
             return [min(1.0, self.max_resolution[0] / img_res[1]) for img_res in self.img_res_lst_original]
         else:
-            return [min(1.0, self.max_resolution[1] / img_res[0], self.max_resolution[0] / img_res[1]) for img_res in
+            return [min(1.0, max(self.max_resolution[1] / img_res[0], self.max_resolution[0] / img_res[1])) for img_res in
                     self.img_res_lst_original]
