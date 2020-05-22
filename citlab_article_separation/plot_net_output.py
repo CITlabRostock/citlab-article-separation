@@ -46,6 +46,27 @@ def plot_connected_components(image):
     return labels
 
 
+def compute_accuracy(hyp_image, gt_image):
+    """
+    Compare the hypothesis image `hyp_image` to the GT image `gt_image` and compute the accuracy.
+    Assume that both images are binary.
+    :param hyp_image:
+    :param gt_image:
+    :return:
+    """
+    return np.sum(hyp_image == gt_image) / gt_image.size
+
+
+def plot_confidence_histogram(bin_image):
+    """ Assumes that `bin_image` is a binary image with values ranging from 0 to 255.
+
+    :param bin_image:
+    :return:
+    """
+    plt.hist(bin_image.flatten(), bins=256, range=(0, 1))
+    plt.show()
+
+
 def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0", rescale=None, fixed_height=None,
                     mask_threshold=None, plot_with_gt=False, plot_with_img=False, show_plot=False):
     session_conf = tf.ConfigProto()
@@ -58,7 +79,9 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
         out = graph.get_tensor_by_name('output:0')
 
         with open(path_to_img_lst) as f:
+            accuracies = []
             for path_to_img in f.readlines():
+
                 path_to_img = path_to_img.rstrip()
 
                 dirname = os.path.dirname(path_to_img)
@@ -76,7 +99,7 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                 elif rescale:
                     scaling_factor = rescale
 
-                if scaling_factor:
+                if 0.1 < scaling_factor < 1.0:
                     img = cv2.resize(img, None, fx=scaling_factor, fy=scaling_factor, interpolation=cv2.INTER_AREA)
                     img_gray = cv2.resize(img_gray, None, fx=scaling_factor, fy=scaling_factor,
                                           interpolation=cv2.INTER_AREA)
@@ -86,23 +109,50 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                     img_gray = np.expand_dims(img_gray, axis=0)
                 out_img = sess.run(out, feed_dict={x: img_gray})
 
+                n_class_img = out_img.shape[-1]
+
+                print("Percentage of Pixels where the net is not 100% sure: ",
+                      np.sum((0 < out_img) & (out_img < 1)) / out_img.size)
+
                 if mask_threshold:
                     out_img = np.array((out_img > 0.6), np.int32)
 
-                n_class_img = out_img.shape[-1]
+                n_class_img_name = n_class_img
+                # n_class_img_name = 2
 
-                if plot_with_gt:
-                    paths_to_gts = [os.path.join(dirname, "C" + str(n_class_img), img_name + "_GT" + str(i) + ".png")
-                                    for i in range(n_class_img)]
-                    gt_imgs = [cv2.imread(path_to_gt) for path_to_gt in paths_to_gts]
-                    gt_imgs = [cv2.cvtColor(gt_img, cv2.COLOR_BGR2GRAY) for gt_img in gt_imgs]
-                    if scaling_factor:
-                        gt_imgs = [cv2.resize(gt_img, None, fx=scaling_factor, fy=scaling_factor) for gt_img in gt_imgs]
+                # if plot_with_gt:
+                paths_to_gts = [os.path.join(dirname, "C" + str(n_class_img_name), img_name + "_GT" + str(i) + ".png")
+                                for i in range(n_class_img_name)]
+                gt_imgs = [cv2.imread(path_to_gt) for path_to_gt in paths_to_gts]
+                gt_imgs = [cv2.cvtColor(gt_img, cv2.COLOR_BGR2GRAY) for gt_img in gt_imgs]
+                if scaling_factor:
+                    gt_imgs = [cv2.resize(gt_img, None, fx=scaling_factor, fy=scaling_factor) for gt_img in gt_imgs]
 
-                for cl in range(n_class_img):
+                out_img_2d_argmax_values = np.argmax(out_img, axis=3)
+                out_img_2d_argmax = np.zeros_like(out_img)
+                # out_img_2d = np.where(out_img_2d_argmax_values, [])
+                class_pixel_counts = {"class_" + str(i): 0 for i in range(n_class_img)}
+                full_count = img_width * img_height
+                for i in range(out_img.shape[0]):
+                    for j in range(out_img.shape[1]):
+                        for k in range(out_img.shape[2]):
+                            argmax = out_img_2d_argmax_values[i, j, k]
+                            out_img_2d_argmax[i, j, k, argmax] = 1
+                            class_pixel_counts["class_" + str(argmax)] += 1
+                for class_name, class_pixel_count in class_pixel_counts.items():
+                    print(f"Percentage of pixels in {class_name}: {class_pixel_count / full_count}")
+
+                accuracy = 0
+                for cl in range(n_class_img_name):
                     out_img_2d = out_img[0, :, :, cl]
                     out_img_2d_255 = out_img_2d * 255
                     out_img_2d_255 = np.uint8(out_img_2d_255)
+
+                    # Make histogram plot
+                    # plot_confidence_histogram(out_img_2d_255)
+
+                    # calculate accuracy
+                    accuracy += compute_accuracy(out_img_2d_argmax[0, :, :, cl], gt_imgs[cl] / 255)
 
                     if plot_with_img:
                         out_img_2d_255 = plot_image_with_net_output(img, out_img_2d_255)
@@ -129,8 +179,13 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                         # # plt.imshow(img_with_net_output)
                         # img_with_ccs = plot_connected_components(img_gray_2d)
                         # plt.imshow(img_with_ccs, cmap='gray')
-                        # plt.show()
+                        plt.show()
                         # exit(1)
+                accuracy /= n_class_img
+                accuracies.append(accuracy)
+                print("Accuracy = ", accuracy)
+                print("+++++++++++++++++++++++")
+            print("Overall Accuracy = ", sum(accuracies) / len(accuracies))
 
 
 if __name__ == '__main__':
@@ -147,9 +202,17 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if not os.path.exists(args.save_folder) or not os.path.isdir(args.save_folder) and args.save_folder:
-        os.mkdir(args.save_folder)
+    path_to_tf_graph = args.path_to_tf_graph
 
-    plot_net_output(args.path_to_tf_graph, args.path_to_img_lst, args.save_folder, rescale=args.rescale_factor,
+    path_to_tf_graph = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/newseye/" \
+                       "racetrack_onb_textblock_136/TB_aru_1250_height/export/TB_aru_1250_height_2020-05-16.pb"
+
+    # path_to_tf_graph = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/newseye/" \
+    #                    "racetrack_onb_textblock_136/TB_test_accuracy_measure/export/TB_test_accuracy_measure_2020-05-20.pb"
+
+    # if not os.path.exists(args.save_folder) or not os.path.isdir(args.save_folder) and args.save_folder:
+    #     os.mkdir(args.save_folder)
+
+    plot_net_output(path_to_tf_graph, args.path_to_img_lst, args.save_folder, rescale=args.rescale_factor,
                     fixed_height=args.fixed_height, plot_with_gt=False, plot_with_img=True,
                     mask_threshold=False, show_plot=True)
