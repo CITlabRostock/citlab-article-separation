@@ -83,9 +83,9 @@ class GroundTruthGenerator(ABC):
             info_file.write("\n")
 
             for region_name, region_info in self.regions_information_dict.items():
-                num_images = len(region_info['num_regions']) - region_info['num_regions'].count(0)
-                num_regions_overall = sum(region_info['num_regions'])
-                avg_pixel_percentage = np.average(region_info['pixel_percentages'])
+                num_images = len(region_info[0]) - region_info[0].count(0)
+                num_regions_overall = sum(region_info[0])
+                avg_pixel_percentage = np.average(region_info[1])
                 info_file.write(region_name)
                 info_file.write(f"\tNumber of images: {num_images}\n")
                 info_file.write(f"\tNumber of regions overall: {num_regions_overall}\n")
