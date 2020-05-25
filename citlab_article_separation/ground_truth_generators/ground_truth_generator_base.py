@@ -94,8 +94,8 @@ class GroundTruthGenerator(ABC):
     def add_region_information(self):
         for region_name, region_list in self.regions_dict.items():
             self.regions_information_dict[region_name] = self.RegionInfo([len(region) for region in region_list],
-                                                                         [np.count_nonzero(region) / len(region)
-                                                                          for region in region_list])
+                                                                         [np.count_nonzero(gt) / gt.size
+                                                                          for gt in self.gt_dict[region_name]])
 
     def get_page_list(self):
         page_path_lst = []
