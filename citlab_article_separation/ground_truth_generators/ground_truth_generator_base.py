@@ -27,7 +27,7 @@ def load_image_list(path_to_img_lst):
 class GroundTruthGenerator(ABC):
     def __init__(self, path_to_img_lst, max_resolution=(0, 0), scaling_factor=1.0):
         self.img_path_lst = load_image_list(path_to_img_lst)
-        self.img_path_lst_final = []
+        self.valid_img_indizes = []
         self.page_path_lst = self.get_page_list()
         self.page_object_lst = self.create_page_objects()
         self.img_res_lst_original = self.get_image_resolutions_from_page_objects()  # list of tuples (width, height) containing the size of the image
@@ -116,12 +116,13 @@ class GroundTruthGenerator(ABC):
 
             for i, gt_imgs in enumerate(self.gt_imgs_lst):
                 for j, gt_img in enumerate(gt_imgs):
-                    gt_img_savefile_name = self.get_ground_truth_image_savefile_name(self.img_path_lst_final[i], j,
-                                                                                     savedir,
-                                                                                     gt_folder_name="C" + str(len(gt_imgs)))
+                    gt_img_savefile_name = self.get_ground_truth_image_savefile_name(
+                        self.img_path_lst[self.valid_img_indizes[i]], j, savedir,
+                        gt_folder_name="C" + str(len(gt_imgs)))
                     cv2.imwrite(gt_img_savefile_name, gt_img)
-                cv2.imwrite(self.get_grey_image_savefile_name(self.img_path_lst_final[i], savedir), self.grey_img_lst[i])
-                with open(self.get_rotation_savefile_name(self.img_path_lst_final[i], savedir), "w") as rot:
+                cv2.imwrite(self.get_grey_image_savefile_name(self.img_path_lst[self.valid_img_indizes[i]], savedir),
+                            self.grey_img_lst[self.valid_img_indizes[i]])
+                with open(self.get_rotation_savefile_name(self.img_path_lst[self.valid_img_indizes[i]], savedir), "w") as rot:
                     rot.write("0")
 
     @staticmethod
@@ -203,7 +204,8 @@ class GroundTruthGenerator(ABC):
             gt_img_compare = gt_imgs[0]
             changed_gt_imgs = [gt_imgs[0]]
             for j in range(len(gt_imgs) - 1):
-                changed_gt_imgs.append(self.make_disjoint(gt_img_compare=gt_img_compare, gt_img_to_change=gt_imgs[j + 1]))
+                changed_gt_imgs.append(
+                    self.make_disjoint(gt_img_compare=gt_img_compare, gt_img_to_change=gt_imgs[j + 1]))
                 gt_img_compare = np.bitwise_or(gt_img_compare, gt_imgs[j + 1])
 
             self.gt_imgs_lst[i] = tuple(changed_gt_imgs)
@@ -221,5 +223,6 @@ class GroundTruthGenerator(ABC):
         elif self.max_resolution[1] == 0:
             return [min(1.0, self.max_resolution[0] / img_res[1]) for img_res in self.img_res_lst_original]
         else:
-            return [min(1.0, max(self.max_resolution[1] / img_res[0], self.max_resolution[0] / img_res[1])) for img_res in
+            return [min(1.0, max(self.max_resolution[1] / img_res[0], self.max_resolution[0] / img_res[1])) for img_res
+                    in
                     self.img_res_lst_original]

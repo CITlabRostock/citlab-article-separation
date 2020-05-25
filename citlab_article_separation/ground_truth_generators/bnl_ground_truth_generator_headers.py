@@ -52,17 +52,23 @@ class BNLGroundTruthGeneratorHeaders(TextBlockGroundTruthGenerator):
                 self.regions_dict[self.HEADING_TITLE_REGIONS][i], img_width, img_height, fill=True,
                 scaling_factor=sc_factor))
 
-            gt_channels = [self.gt_dict[self.TITLE_HEADLINE_REGIONS][-1],
-                           self.gt_dict[self.TITLE_SUBHEADLINE_REGIONS][-1],
-                           self.gt_dict[self.TITLE_OTHER_REGIONS][-1],
-                           self.gt_dict[self.HEADING_TITLE_REGIONS][-1]]
+            if self.issue_name == "independence_lux":
+                gt_channels = [self.gt_dict[self.TITLE_HEADLINE_REGIONS][-1],
+                               self.gt_dict[self.TITLE_OTHER_REGIONS][-1],
+                               self.gt_dict[self.HEADING_TITLE_REGIONS][-1]]
+
+            else:
+                gt_channels = [self.gt_dict[self.TITLE_HEADLINE_REGIONS][-1],
+                               self.gt_dict[self.TITLE_SUBHEADLINE_REGIONS][-1],
+                               self.gt_dict[self.TITLE_OTHER_REGIONS][-1],
+                               self.gt_dict[self.HEADING_TITLE_REGIONS][-1]]
 
             other_gt_img = self.create_other_ground_truth_image(*gt_channels)
             gt_channels.append(other_gt_img)
             gt_channels = tuple(gt_channels)
 
             self.gt_imgs_lst.append(gt_channels)
-            self.img_path_lst_final.append(self.img_path_lst[i])
+            self.valid_img_indizes.append(i)
         self.make_disjoint_all()
 
 
