@@ -17,7 +17,6 @@ class BNLGroundTruthGeneratorHeaders(TextBlockGroundTruthGenerator):
         heading_title_regions = self.get_classic_heading_regions_list(["", "title", "subheadline", "overline"])
 
         # Make sure that the order of items in the dictionary is the same as the order of the GT files below
-
         self.TITLE_HEADLINE_REGIONS = "title_headline_regions"
         self.TITLE_SUBHEADLINE_REGIONS = "title_subheadline_regions"
         self.TITLE_OTHER_REGIONS = "title_other_regions"
@@ -36,27 +35,27 @@ class BNLGroundTruthGeneratorHeaders(TextBlockGroundTruthGenerator):
             img_height = self.img_res_lst[i][0]
             sc_factor = self.scaling_factors[i]
 
-            self.gt_dict[self.TITLE_HEADLINE_REGIONS] = self.create_region_gt_img(
-                self.regions_dict[self.TITLE_HEADLINE_REGIONS][i], img_width, img_height, fill=True,
-                scaling_factor=sc_factor)
-            self.gt_dict[self.TITLE_SUBHEADLINE_REGIONS] = self.create_region_gt_img(
-                self.regions_dict[self.TITLE_SUBHEADLINE_REGIONS][i], img_width, img_height, fill=True,
-                scaling_factor=sc_factor)
-            self.gt_dict[self.TITLE_OTHER_REGIONS] = self.create_region_gt_img(
-                self.regions_dict[self.TITLE_OTHER_REGIONS][i], img_width, img_height, fill=True,
-                scaling_factor=sc_factor)
-            self.gt_dict[self.HEADING_TITLE_REGIONS] = self.create_region_gt_img(
-                self.regions_dict[self.HEADING_TITLE_REGIONS][i], img_width, img_height, fill=True,
-                scaling_factor=sc_factor)
-
-            gt_channels = [self.gt_dict[self.TITLE_HEADLINE_REGIONS],
-                           self.gt_dict[self.TITLE_SUBHEADLINE_REGIONS],
-                           self.gt_dict[self.TITLE_OTHER_REGIONS],
-                           self.gt_dict[self.HEADING_TITLE_REGIONS]]
-
             if all(len(regions[i]) == 0 for regions in self.regions_dict.values()):
                 print("\tSkipping because requested GT is not available on this page.")
                 continue
+
+            self.gt_dict[self.TITLE_HEADLINE_REGIONS].append(self.create_region_gt_img(
+                self.regions_dict[self.TITLE_HEADLINE_REGIONS][i], img_width, img_height, fill=True,
+                scaling_factor=sc_factor))
+            self.gt_dict[self.TITLE_SUBHEADLINE_REGIONS].append(self.create_region_gt_img(
+                self.regions_dict[self.TITLE_SUBHEADLINE_REGIONS][i], img_width, img_height, fill=True,
+                scaling_factor=sc_factor))
+            self.gt_dict[self.TITLE_OTHER_REGIONS].append(self.create_region_gt_img(
+                self.regions_dict[self.TITLE_OTHER_REGIONS][i], img_width, img_height, fill=True,
+                scaling_factor=sc_factor))
+            self.gt_dict[self.HEADING_TITLE_REGIONS].append(self.create_region_gt_img(
+                self.regions_dict[self.HEADING_TITLE_REGIONS][i], img_width, img_height, fill=True,
+                scaling_factor=sc_factor))
+
+            gt_channels = [self.gt_dict[self.TITLE_HEADLINE_REGIONS][-1],
+                           self.gt_dict[self.TITLE_SUBHEADLINE_REGIONS][-1],
+                           self.gt_dict[self.TITLE_OTHER_REGIONS][-1],
+                           self.gt_dict[self.HEADING_TITLE_REGIONS][-1]]
 
             other_gt_img = self.create_other_ground_truth_image(*gt_channels)
             gt_channels.append(other_gt_img)

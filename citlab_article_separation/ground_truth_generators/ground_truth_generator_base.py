@@ -1,7 +1,7 @@
 import logging
 import os
 from abc import ABC, abstractmethod
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from copy import deepcopy
 
 import cv2
@@ -42,7 +42,7 @@ class GroundTruthGenerator(ABC):
         self.n_channels = 0
 
         self.regions_dict = {}
-        self.gt_dict = {}
+        self.gt_dict = defaultdict(list)
         self.regions_information_dict = {}
         self.RegionInfo = namedtuple('RegionInfo', ['num_regions', 'pixel_percentages'])
 
