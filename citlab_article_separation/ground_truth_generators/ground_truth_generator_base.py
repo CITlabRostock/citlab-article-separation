@@ -1,6 +1,7 @@
 import logging
 import os
 from abc import ABC, abstractmethod
+from collections import namedtuple
 from copy import deepcopy
 
 import cv2
@@ -39,6 +40,11 @@ class GroundTruthGenerator(ABC):
         self.gt_imgs_lst = []  # list of tuples
         self.gt_polygon_lst = []  # list of tuples representing lists of polygons plotted in gt_imgs_lst
         self.n_channels = 0
+
+        self.regions_dict = {}
+        self.regions_information_dict = {}
+        self.RegionInfo = namedtuple('RegionInfo', ['num_regions', 'pixel_percentages'])
+
         super().__init__()
 
     def create_page_objects(self):
@@ -66,6 +72,29 @@ class GroundTruthGenerator(ABC):
     @abstractmethod
     def create_ground_truth_images(self):
         pass
+
+    def create_and_write_info_file(self, path_to_info_file):
+        with open(path_to_info_file, "w") as info_file:
+            info_file.write(f"Processed {len(self.img_path_lst)} images.\n\n")
+            info_file.write("GT channels:\n")
+            for i, region_name in enumerate(self.regions_dict.keys()):
+                info_file.write(f"\tGT{i}: {region_name}\n")
+            info_file.write("\n")
+
+            for region_name, region_info in self.regions_information_dict.items():
+                num_images = len(region_info['num_regions']) - region_info['num_regions'].count(0)
+                num_regions_overall = sum(region_info['num_regions'])
+                avg_pixel_percentage = np.average(region_info['pixel_percentages'])
+                info_file.write(region_name)
+                info_file.write(f"\tNumber of images: {num_images}\n")
+                info_file.write(f"\tNumber of regions overall: {num_regions_overall}\n")
+                info_file.write(f"\tAverage pixel percentage: {avg_pixel_percentage}\n")
+
+    def add_region_information(self):
+        for region_name, region_list in self.regions_dict.items():
+            self.regions_information_dict[region_name] = self.RegionInfo([len(region) for region in region_list],
+                                                                         [np.count_nonzero(region) / region.size
+                                                                          for region in region_list])
 
     def get_page_list(self):
         page_path_lst = []
@@ -121,10 +150,14 @@ class GroundTruthGenerator(ABC):
         img_name_wo_ext = os.path.splitext(os.path.basename(img_name))[0]
         return os.path.join(save_dir, img_name_wo_ext + rotation_file_ext)
 
-    def run_ground_truth_generation(self, save_dir):
+    def run_ground_truth_generation(self, save_dir, create_info_file=True):
         self.create_grey_images()
         self.create_page_objects()
         self.create_ground_truth_images()
+
+        if create_info_file:
+            self.add_region_information()
+            self.create_and_write_info_file(os.path.join(save_dir, 'info.txt'))
 
         self.save_ground_truth(save_dir)
 
