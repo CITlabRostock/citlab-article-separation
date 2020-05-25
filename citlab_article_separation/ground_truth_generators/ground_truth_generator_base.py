@@ -120,8 +120,8 @@ class GroundTruthGenerator(ABC):
                                                                                      savedir,
                                                                                      gt_folder_name="C" + str(len(gt_imgs)))
                     cv2.imwrite(gt_img_savefile_name, gt_img)
-                cv2.imwrite(self.get_grey_image_savefile_name(self.img_path_lst[i], savedir), self.grey_img_lst[i])
-                with open(self.get_rotation_savefile_name(self.img_path_lst[i], savedir), "w") as rot:
+                cv2.imwrite(self.get_grey_image_savefile_name(self.img_path_lst_final[i], savedir), self.grey_img_lst[i])
+                with open(self.get_rotation_savefile_name(self.img_path_lst_final[i], savedir), "w") as rot:
                     rot.write("0")
 
     @staticmethod
