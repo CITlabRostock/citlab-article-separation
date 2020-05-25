@@ -27,6 +27,7 @@ def load_image_list(path_to_img_lst):
 class GroundTruthGenerator(ABC):
     def __init__(self, path_to_img_lst, max_resolution=(0, 0), scaling_factor=1.0):
         self.img_path_lst = load_image_list(path_to_img_lst)
+        self.img_path_lst_final = []
         self.page_path_lst = self.get_page_list()
         self.page_object_lst = self.create_page_objects()
         self.img_res_lst_original = self.get_image_resolutions_from_page_objects()  # list of tuples (width, height) containing the size of the image
@@ -115,7 +116,8 @@ class GroundTruthGenerator(ABC):
 
             for i, gt_imgs in enumerate(self.gt_imgs_lst):
                 for j, gt_img in enumerate(gt_imgs):
-                    gt_img_savefile_name = self.get_ground_truth_image_savefile_name(self.img_path_lst[i], j, savedir,
+                    gt_img_savefile_name = self.get_ground_truth_image_savefile_name(self.img_path_lst_final[i], j,
+                                                                                     savedir,
                                                                                      gt_folder_name="C" + str(len(gt_imgs)))
                     cv2.imwrite(gt_img_savefile_name, gt_img)
                 cv2.imwrite(self.get_grey_image_savefile_name(self.img_path_lst[i], savedir), self.grey_img_lst[i])

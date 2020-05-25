@@ -62,6 +62,7 @@ class BNLGroundTruthGeneratorHeaders(TextBlockGroundTruthGenerator):
             gt_channels = tuple(gt_channels)
 
             self.gt_imgs_lst.append(gt_channels)
+            self.img_path_lst_final.append(self.img_path_lst[i])
         self.make_disjoint_all()
 
 
