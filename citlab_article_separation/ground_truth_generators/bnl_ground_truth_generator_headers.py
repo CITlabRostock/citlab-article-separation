@@ -42,9 +42,6 @@ class BNLGroundTruthGeneratorHeaders(TextBlockGroundTruthGenerator):
             self.gt_dict[self.TITLE_HEADLINE_REGIONS].append(self.create_region_gt_img(
                 self.regions_dict[self.TITLE_HEADLINE_REGIONS][i], img_width, img_height, fill=True,
                 scaling_factor=sc_factor))
-            self.gt_dict[self.TITLE_SUBHEADLINE_REGIONS].append(self.create_region_gt_img(
-                self.regions_dict[self.TITLE_SUBHEADLINE_REGIONS][i], img_width, img_height, fill=True,
-                scaling_factor=sc_factor))
             self.gt_dict[self.TITLE_OTHER_REGIONS].append(self.create_region_gt_img(
                 self.regions_dict[self.TITLE_OTHER_REGIONS][i], img_width, img_height, fill=True,
                 scaling_factor=sc_factor))
@@ -58,6 +55,10 @@ class BNLGroundTruthGeneratorHeaders(TextBlockGroundTruthGenerator):
                                self.gt_dict[self.HEADING_TITLE_REGIONS][-1]]
 
             else:
+                self.gt_dict[self.TITLE_SUBHEADLINE_REGIONS].append(self.create_region_gt_img(
+                    self.regions_dict[self.TITLE_SUBHEADLINE_REGIONS][i], img_width, img_height, fill=True,
+                    scaling_factor=sc_factor))
+
                 gt_channels = [self.gt_dict[self.TITLE_HEADLINE_REGIONS][-1],
                                self.gt_dict[self.TITLE_SUBHEADLINE_REGIONS][-1],
                                self.gt_dict[self.TITLE_OTHER_REGIONS][-1],
