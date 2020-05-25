@@ -42,6 +42,7 @@ class GroundTruthGenerator(ABC):
         self.n_channels = 0
 
         self.regions_dict = {}
+        self.gt_dict = {}
         self.regions_information_dict = {}
         self.RegionInfo = namedtuple('RegionInfo', ['num_regions', 'pixel_percentages'])
 
@@ -93,7 +94,7 @@ class GroundTruthGenerator(ABC):
     def add_region_information(self):
         for region_name, region_list in self.regions_dict.items():
             self.regions_information_dict[region_name] = self.RegionInfo([len(region) for region in region_list],
-                                                                         [np.count_nonzero(region) / region.size
+                                                                         [np.count_nonzero(region) / len(region)
                                                                           for region in region_list])
 
     def get_page_list(self):
