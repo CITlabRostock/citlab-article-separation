@@ -22,10 +22,15 @@ class BNLGroundTruthGeneratorHeaders(TextBlockGroundTruthGenerator):
         self.TITLE_OTHER_REGIONS = "title_other_regions"
         self.HEADING_TITLE_REGIONS = "heading_title_regions"
 
-        self.regions_dict = {self.TITLE_HEADLINE_REGIONS: title_headline_regions,
-                             self.TITLE_SUBHEADLINE_REGIONS: title_subheadline_regions,
-                             self.TITLE_OTHER_REGIONS: title_other_regions,
-                             self.HEADING_TITLE_REGIONS: heading_title_regions}
+        if self.issue_name == "independance_lux":
+            self.regions_dict = {self.TITLE_HEADLINE_REGIONS: title_headline_regions,
+                                 self.TITLE_OTHER_REGIONS: title_other_regions,
+                                 self.HEADING_TITLE_REGIONS: heading_title_regions}
+        else:
+            self.regions_dict = {self.TITLE_HEADLINE_REGIONS: title_headline_regions,
+                                 self.TITLE_SUBHEADLINE_REGIONS: title_subheadline_regions,
+                                 self.TITLE_OTHER_REGIONS: title_other_regions,
+                                 self.HEADING_TITLE_REGIONS: heading_title_regions}
 
     def create_ground_truth_images(self):
         # Order of gt images is important for the "make_disjoint_all()" call at the end.
