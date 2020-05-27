@@ -68,7 +68,8 @@ def plot_confidence_histogram(bin_image):
 
 
 def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0", rescale=None, fixed_height=None,
-                    mask_threshold=None, plot_with_gt=False, plot_with_img=False, show_plot=False):
+                    mask_threshold=None, plot_with_gt=False, plot_with_img=False, show_plot=False,
+                    calculate_accuracy=True):
     session_conf = tf.ConfigProto()
     session_conf.gpu_options.visible_device_list = gpu_device
 
@@ -86,7 +87,7 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
 
                 dirname = os.path.dirname(path_to_img)
                 img_name, ext = os.path.splitext(os.path.basename(path_to_img))
-
+                
                 img = cv2.imread(path_to_img)
                 img_height, img_width = img.shape[:2]
                 img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -107,6 +108,8 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                 if len(img_gray.shape) == 2:
                     img_gray = np.expand_dims(img_gray, axis=-1)
                     img_gray = np.expand_dims(img_gray, axis=0)
+
+                img_gray = img_gray / 255.0
                 out_img = sess.run(out, feed_dict={x: img_gray})
 
                 n_class_img = out_img.shape[-1]
@@ -120,13 +123,13 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                 n_class_img_name = n_class_img
                 # n_class_img_name = 2
 
-                # if plot_with_gt:
-                paths_to_gts = [os.path.join(dirname, "C" + str(n_class_img_name), img_name + "_GT" + str(i) + ".png")
-                                for i in range(n_class_img_name)]
-                gt_imgs = [cv2.imread(path_to_gt) for path_to_gt in paths_to_gts]
-                gt_imgs = [cv2.cvtColor(gt_img, cv2.COLOR_BGR2GRAY) for gt_img in gt_imgs]
-                if scaling_factor:
-                    gt_imgs = [cv2.resize(gt_img, None, fx=scaling_factor, fy=scaling_factor) for gt_img in gt_imgs]
+                if plot_with_gt or calculate_accuracy:
+                    paths_to_gts = [os.path.join(dirname, "C" + str(n_class_img_name), img_name + "_GT" + str(i) + ".png")
+                                    for i in range(n_class_img_name)]
+                    gt_imgs = [cv2.imread(path_to_gt) for path_to_gt in paths_to_gts]
+                    gt_imgs = [cv2.cvtColor(gt_img, cv2.COLOR_BGR2GRAY) for gt_img in gt_imgs]
+                    if scaling_factor:
+                        gt_imgs = [cv2.resize(gt_img, None, fx=scaling_factor, fy=scaling_factor) for gt_img in gt_imgs]
 
                 out_img_2d_argmax_values = np.argmax(out_img, axis=3)
                 out_img_2d_argmax = np.zeros_like(out_img)
@@ -152,7 +155,8 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                     # plot_confidence_histogram(out_img_2d_255)
 
                     # calculate accuracy
-                    accuracy += compute_accuracy(out_img_2d_argmax[0, :, :, cl], gt_imgs[cl] / 255)
+                    if calculate_accuracy:
+                        accuracy += compute_accuracy(out_img_2d_argmax[0, :, :, cl], gt_imgs[cl] / 255)
 
                     if plot_with_img:
                         out_img_2d_255 = plot_image_with_net_output(img, out_img_2d_255)
@@ -199,10 +203,13 @@ if __name__ == '__main__':
                         help="rescaling the images before inputting them to the network.")
     parser.add_argument('--fixed_height', default=0, type=int,
                         help="rescales the input images to a fixed height. Only works if rescale_factor is not set")
+    parser.add_argument('--calculate_accuracy', default=False, action='store_true',
+                        help="whether or not to calculate the accuracy of the net output - needs GT.")
 
     args = parser.parse_args()
 
     path_to_tf_graph = args.path_to_tf_graph
+    path_to_img_lst = args.path_to_img_lst
 
     path_to_tf_graph = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/newseye/" \
                        "racetrack_onb_textblock_136/TB_aru_1250_height/export/TB_aru_1250_height_2020-05-16.pb"
@@ -210,9 +217,13 @@ if __name__ == '__main__':
     # path_to_tf_graph = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/newseye/" \
     #                    "racetrack_onb_textblock_136/TB_test_accuracy_measure/export/TB_test_accuracy_measure_2020-05-20.pb"
 
+    path_to_tf_graph = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/independance_lux/" \
+                       "headers/tb_headers_aru/export/tb_headers_aru_2020-05-27.pb"
+    # path_to_img_lst = "/home/max/data/la/textblock_detection/bnl_data/independance_lux/traindata_headers/val.lst"
+
     # if not os.path.exists(args.save_folder) or not os.path.isdir(args.save_folder) and args.save_folder:
     #     os.mkdir(args.save_folder)
 
-    plot_net_output(path_to_tf_graph, args.path_to_img_lst, args.save_folder, rescale=args.rescale_factor,
+    plot_net_output(path_to_tf_graph, path_to_img_lst, args.save_folder, rescale=args.rescale_factor,
                     fixed_height=args.fixed_height, plot_with_gt=False, plot_with_img=True,
-                    mask_threshold=False, show_plot=True)
+                    mask_threshold=False, show_plot=True, calculate_accuracy=args.calculate_accuracy)
