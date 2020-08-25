@@ -302,5 +302,5 @@ if __name__ == '__main__':
     rect2 = patches.Rectangle((40, 100), 40, 30, linewidth=2, edgecolor='white', facecolor='none')
     ax.add_patch(rect1)
     ax.add_patch(rect2)
-    # plt.plot(plt.Rectangle((1, 1), 50, 50))
+    # plt.plot_binary(plt.Rectangle((1, 1), 50, 50))
     plt.show()

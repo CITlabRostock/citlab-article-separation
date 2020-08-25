@@ -247,7 +247,7 @@ if __name__ == '__main__':
                         help='How much two article rectangles at least have to overlap '
                              'horizontally to connect them to one article rectangle in a postprocessing step.')
     parser.add_argument('--plot_page_xml', type=str2bool, nargs='?', const=True, default=True,
-                        help='whether to plot the PageXml or not.')
+                        help='whether to plot_binary the PageXml or not.')
     parser.add_argument('--mode', default='ab_bl', type=str,
                         help='choose which GT you want to generate, choose from ["ab_bl", "ab", "a"].\n'
                              '\t ab_bl: article boundaries + baselines\n'

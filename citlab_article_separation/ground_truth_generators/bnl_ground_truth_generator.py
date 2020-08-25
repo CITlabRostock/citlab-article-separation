@@ -1,10 +1,10 @@
 import argparse
 
-from citlab_article_separation.ground_truth_generators.text_block_ground_truth_generator import \
-    TextBlockGroundTruthGenerator
+from citlab_article_separation.ground_truth_generators.region_ground_truth_generator import \
+    RegionGroundTruthGenerator
 
 
-class BNLGroundTruthGenerator(TextBlockGroundTruthGenerator):
+class BNLGroundTruthGenerator(RegionGroundTruthGenerator):
     def __init__(self, path_to_img_lst, max_resolution=(0, 0), scaling_factor=1.0, use_bounding_box=False,
                  use_min_area_rect=False, issue_name="luxwort"):
         super().__init__(path_to_img_lst, max_resolution, scaling_factor, use_bounding_box, use_min_area_rect)

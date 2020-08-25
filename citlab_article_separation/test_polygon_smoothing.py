@@ -157,7 +157,7 @@ if __name__ == '__main__':
     #         xs, ys = zip(*poly)
     #         plt.ylim(-10000, 1000)
     #         plt.xlim(-1000, 7000)
-    #         plt.plot(xs, [-y for y in ys], 'k')
+    #         plt.plot_binary(xs, [-y for y in ys], 'k')
     #
     #     plt.subplot(1, 3, 2)
     #     for poly in surr_polys_dict[id]:
@@ -166,7 +166,7 @@ if __name__ == '__main__':
     #         xs, ys = zip(*poly)
     #         plt.ylim(-10000, 1000)
     #         plt.xlim(-1000, 7000)
-    #         plt.plot(xs, [-y for y in ys], 'k')
+    #         plt.plot_binary(xs, [-y for y in ys], 'k')
     #
     #     smooth_corners_ur_x = []
     #     smooth_corners_ur_y = []
@@ -213,13 +213,13 @@ if __name__ == '__main__':
     #     #             smooth_horizontals_y.append(pt[0][1])
     #     #     for poly in rects:
     #     #         xs, ys = zip(*poly)
-    #     #         plt.plot(xs, [-y for y in ys], 'r')
-    #     # plt.plot(smooth_corners_ur_x, [-y for y in smooth_corners_ur_y], 'xb')
-    #     # plt.plot(smooth_corners_ul_x, [-y for y in smooth_corners_ul_y], 'xg')
-    #     # plt.plot(smooth_corners_dr_x, [-y for y in smooth_corners_dr_y], 'xr')
-    #     # plt.plot(smooth_corners_dl_x, [-y for y in smooth_corners_dl_y], 'xc')
-    #     # plt.plot(smooth_verticals_x, [-y for y in smooth_verticals_y], 'om', ms=3)
-    #     # plt.plot(smooth_horizontals_x, [-y for y in smooth_horizontals_y], 'oy', ms=4)
+    #     #         plt.plot_binary(xs, [-y for y in ys], 'r')
+    #     # plt.plot_binary(smooth_corners_ur_x, [-y for y in smooth_corners_ur_y], 'xb')
+    #     # plt.plot_binary(smooth_corners_ul_x, [-y for y in smooth_corners_ul_y], 'xg')
+    #     # plt.plot_binary(smooth_corners_dr_x, [-y for y in smooth_corners_dr_y], 'xr')
+    #     # plt.plot_binary(smooth_corners_dl_x, [-y for y in smooth_corners_dl_y], 'xc')
+    #     # plt.plot_binary(smooth_verticals_x, [-y for y in smooth_verticals_y], 'om', ms=3)
+    #     # plt.plot_binary(smooth_horizontals_x, [-y for y in smooth_horizontals_y], 'oy', ms=4)
     #
     #     plt.subplot(1, 3, 3)
     #     for poly in surr_polys_smooth_dict[id]:
@@ -228,7 +228,7 @@ if __name__ == '__main__':
     #         xs, ys = zip(*poly)
     #         plt.ylim(-10000, 1000)
     #         plt.xlim(-1000, 7000)
-    #         plt.plot(xs, [-y for y in ys], 'k')
+    #         plt.plot_binary(xs, [-y for y in ys], 'k')
     #
     # plt.show()
     jpype.shutdownJVM()

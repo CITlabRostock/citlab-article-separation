@@ -11,7 +11,7 @@ logger = logging.getLogger("TextBlockGroundTruthGenerator")
 logging.basicConfig(level=logging.WARNING)
 
 
-class TextBlockGroundTruthGenerator(GroundTruthGenerator):
+class RegionGroundTruthGenerator(GroundTruthGenerator):
     def __init__(self, path_to_img_lst, max_resolution=(0, 0), scaling_factor=1.0, use_bounding_box=False,
                  use_min_area_rect=False):
         super().__init__(path_to_img_lst, max_resolution, scaling_factor)
@@ -171,7 +171,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    tb_generator = TextBlockGroundTruthGenerator(
+    tb_generator = RegionGroundTruthGenerator(
         args.image_list, use_bounding_box=False, use_min_area_rect=False,
         max_resolution=(args.max_height, args.max_width), scaling_factor=args.scaling_factor)
     # print(tb_generator.image_regions_list)

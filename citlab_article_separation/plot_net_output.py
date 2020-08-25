@@ -87,7 +87,7 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
 
                 dirname = os.path.dirname(path_to_img)
                 img_name, ext = os.path.splitext(os.path.basename(path_to_img))
-                
+
                 img = cv2.imread(path_to_img)
                 img_height, img_width = img.shape[:2]
                 img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -124,8 +124,9 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                 # n_class_img_name = 2
 
                 if plot_with_gt or calculate_accuracy:
-                    paths_to_gts = [os.path.join(dirname, "C" + str(n_class_img_name), img_name + "_GT" + str(i) + ".png")
-                                    for i in range(n_class_img_name)]
+                    paths_to_gts = [
+                        os.path.join(dirname, "C" + str(n_class_img_name), img_name + "_GT" + str(i) + ".png")
+                        for i in range(n_class_img_name)]
                     gt_imgs = [cv2.imread(path_to_gt) for path_to_gt in paths_to_gts]
                     gt_imgs = [cv2.cvtColor(gt_img, cv2.COLOR_BGR2GRAY) for gt_img in gt_imgs]
                     if scaling_factor:
@@ -151,7 +152,7 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                     out_img_2d_255 = out_img_2d * 255
                     out_img_2d_255 = np.uint8(out_img_2d_255)
 
-                    # Make histogram plot
+                    # Make histogram plot_binary
                     # plot_confidence_histogram(out_img_2d_255)
 
                     # calculate accuracy
@@ -217,12 +218,35 @@ if __name__ == '__main__':
     # path_to_tf_graph = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/newseye/" \
     #                    "racetrack_onb_textblock_136/TB_test_accuracy_measure/export/TB_test_accuracy_measure_2020-05-20.pb"
 
-    path_to_tf_graph = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/independance_lux/" \
-                       "headers/tb_headers_aru/export/tb_headers_aru_2020-05-27.pb"
+    # path_to_tf_graph = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/independance_lux/" \
+    #                    "headers/tb_headers_aru/export/tb_headers_aru_2020-05-27.pb"
     # path_to_img_lst = "/home/max/data/la/textblock_detection/bnl_data/independance_lux/traindata_headers/val.lst"
 
     # if not os.path.exists(args.save_folder) or not os.path.isdir(args.save_folder) and args.save_folder:
     #     os.mkdir(args.save_folder)
+
+    path_to_tf_graph = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/newseye/" \
+                       "racetrack_onb_textblock_136/TB_aru_3000_height_scaling_train_only/export/" \
+                       "TB_aru_3000_height_scaling_train_only_2020-06-05.pb"
+
+    path_to_tf_graph = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/newseye/" \
+                       "racetrack_onb_textblock_136/TB_aru_3000_height_scaling_train_only/export/" \
+                       "TB_aru_3000_height_scaling_train_only_2020-06-05.pb"
+
+    # with outlines
+
+    # path_to_tf_graph = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/newseye/" \
+    #                    "racetrack_onb_textblock_136/TB_aru_3000_outlines_height_scaling_train_only/export/" \
+    #                    "TB_aru_3000_outlines_height_scaling_train_only_2020-06-05.pb"
+
+    # with separator class
+    # path_to_tf_graph = "/home/max/devel/projects/python/article_separation/models/" \
+    #                    "AS_newspaper_onb_textblock_aru_dist_020_to_050scale_4classes_150epochs/" \
+    #                    "export/AS_newspaper_onb_textblock_aru_dist_020_to_050scale_4classes_2019-10-23.pb"
+
+    # headers
+    # path_to_tf_graph = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/independance_lux/" \
+    #                    "headers/tb_headers_aru/export/tb_headers_aru_2020-06-04.pb"
 
     plot_net_output(path_to_tf_graph, path_to_img_lst, args.save_folder, rescale=args.rescale_factor,
                     fixed_height=args.fixed_height, plot_with_gt=False, plot_with_img=True,
