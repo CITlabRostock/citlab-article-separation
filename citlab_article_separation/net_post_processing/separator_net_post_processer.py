@@ -80,6 +80,8 @@ if __name__ == '__main__':
     # image_list = "/home/max/sanomia_turusta_544852/images.lst"
     # tb_pp = SeparatorNetPostProcessor(image_list, path_to_pb_tb, fixed_height=1650, scaling_factor=1.0, threshold=0.2)
 
+    image_list = "/home/max/separator_splits_with_words/images.lst"
+
     # tb_pp = SeparatorNetPostProcessor(image_list, path_to_pb_tb, fixed_height=None, scaling_factor=0.55, threshold=0.2)
     # tb_pp = SeparatorNetPostProcessor(image_list, path_to_pb_hd, fixed_height=None, scaling_factor=0.55, threshold=0.2)
     tb_pp = SeparatorNetPostProcessor(image_list, path_to_pb_sp, fixed_height=None, scaling_factor=1.0, threshold=0.05)

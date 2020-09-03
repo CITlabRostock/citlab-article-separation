@@ -1,14 +1,13 @@
 from copy import deepcopy
 
+import matplotlib.pyplot as plt
+import numpy as np
+from shapely import geometry
+
+from citlab_article_separation.net_post_processing.region_to_page_writer import RegionToPageWriter
 from citlab_python_util.parser.xml.page.page_constants import sSEPARATORREGION, sTEXTREGION
 from citlab_python_util.parser.xml.page.page_objects import SeparatorRegion
 from citlab_python_util.parser.xml.page.plot import plot_pagexml
-from shapely import geometry, validation
-import numpy as np
-
-from citlab_article_separation.net_post_processing.region_to_page_writer import RegionToPageWriter
-
-import matplotlib.pyplot as plt
 
 
 class SeparatorRegionToPageWriter(RegionToPageWriter):
@@ -57,11 +56,12 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
             """
             Given a SeparatorRegion, split regions in region_dict if possible/necessary. Returns False if one of the
             regions in `region_dict` contains the SeparatorRegion. Then don't write it to the PAGE file.
+            This function assumes, that the text lines lie completely within the text regions and the baselines lie
+            completely within the text lines.
             :param region_dict:
             :param sep_poly:
             :return:
             """
-            print("Separator polygon: ", sep_poly)
             sep_poly_sh = geometry.Polygon(sep_poly).buffer(0)
             if type(sep_poly_sh) == geometry.MultiPolygon:
                 sep_poly_sh = sep_poly_sh[np.argmax([poly.area for poly in list(sep_poly_sh)])]
@@ -81,48 +81,69 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
                         new_region_polys = [list(poly.exterior.coords) for poly in new_region_polys_sh]
                         new_region_objects = _create_page_objects(region, new_region_polys)
 
-                        # # if the region is a TextRegion we also need to take care of the baselines and text lines
-                        # if region_type == sTEXTREGION:
-                        #     for new_region_object in new_region_objects:
-                        #         new_region_object.text_lines = []
-                        #
-                        #     text_lines = region.text_lines
-                        #     for text_line in text_lines:
-                        #         text_line_sh = geometry.Polygon(text_line.surr_p.points_list)
-                        #         if text_line_sh.intersects(sep_poly_sh):
-                        #             text_line_splits_sh = _split_shapely_polygon(text_line_sh, sep_poly_sh)
-                        #             text_line_splits = [list(poly.exterior.coords) for poly in text_line_splits_sh]
-                        #             new_text_line_objects = _create_page_objects(text_line, text_line_splits)
-                        #             for new_text_line_object in new_text_line_objects:
-                        #                 new_text_line_object.set_baseline(None)
-                        #
-                        #             baseline_sh = geometry.LineString(
-                        #                 text_line.baseline.points_list) if text_line.baseline is not None else None
-                        #             if baseline_sh is not None and baseline_sh.intersects(sep_poly_sh):
-                        #                 baseline_splits = _split_shapely_polygon(baseline_sh, sep_poly_sh)
-                        #
-                        #                 # baseline split -> text line split
-                        #                 for baseline_split in baseline_splits:
-                        #                     idx, parent_text_line = _get_parent_region(baseline_split,
-                        #                                                                text_line_splits_sh)
-                        #                     if idx is None:
-                        #                         continue
-                        #                     new_text_line_objects[idx].set_baseline(list(baseline_split.coords))
-                        #
-                        #             # text line split -> region split
-                        #             for text_line_split, new_text_line_object in zip(text_line_splits_sh,
-                        #                                                              new_text_line_objects):
-                        #                 idx, parent_region = _get_parent_region(text_line_split, new_region_polys_sh)
-                        #                 if idx is None:
-                        #                     continue
-                        #                 new_region_objects[idx].text_lines.append(new_text_line_object)
+                        # if the region is a TextRegion we also need to take care of the baselines and text lines
+                        if region_type == sTEXTREGION:
+                            for new_region_object in new_region_objects:
+                                new_region_object.text_lines = []
+
+                            text_lines = region.text_lines
+                            for text_line in text_lines:
+                                text_line_sh = geometry.Polygon(text_line.surr_p.points_list).buffer(0)
+                                if text_line_sh.intersects(sep_poly_sh):
+                                    text_line_splits_sh = _split_shapely_polygon(text_line_sh, sep_poly_sh)
+                                    text_line_splits = [list(poly.exterior.coords) for poly in text_line_splits_sh]
+
+                                    new_text_line_objects = _create_page_objects(text_line, text_line_splits)
+                                    for new_text_line_object in new_text_line_objects:
+                                        new_text_line_object.set_baseline(None)
+                                        new_text_line_object.words = []
+
+                                    # word_idx = np.argmax(
+                                    #     [geometry.Polygon(word.surr_p.points_list).buffer(0).distance(sep_poly_sh)
+                                    #      for word in text_line.words])
+
+                                    for word in text_line.words:
+                                        word_polygon_sh = geometry.Polygon(word.surr_p.points_list).buffer(0)
+                                        matching_textline_idx = np.argmax([word_polygon_sh.intersection(text_line_split_sh)
+                                        for text_line_split_sh in text_line_splits_sh])
+                                        corr_textline = new_text_line_objects[matching_textline_idx]
+                                        corr_textline.words.append(word)
+
+                                    if len(text_line.words) > 0:
+                                        for new_text_line_object in new_text_line_objects:
+                                            new_text_line_object.text = " ".join([word.text for word in text_line.words])
+
+                                    baseline_sh = geometry.LineString(
+                                        text_line.baseline.points_list) if text_line.baseline is not None else None
+                                    if baseline_sh is not None and baseline_sh.intersects(sep_poly_sh):
+                                        baseline_splits = _split_shapely_polygon(baseline_sh, sep_poly_sh)
+
+                                        # baseline split -> text line split
+                                        for baseline_split in baseline_splits:
+                                            idx, parent_text_line = _get_parent_region(baseline_split,
+                                                                                       text_line_splits_sh)
+                                            if idx is None:
+                                                continue
+                                            new_text_line_objects[idx].set_baseline(list(baseline_split.coords))
+
+                                else:
+                                    text_line_splits_sh = [text_line_sh]
+                                    new_text_line_objects = [text_line]
+
+                                # text line split -> region split
+                                for text_line_split, new_text_line_object in zip(text_line_splits_sh,
+                                                                                 new_text_line_objects):
+                                    idx, parent_region = _get_parent_region(text_line_split, new_region_polys_sh)
+                                    if idx is None:
+                                        continue
+                                    new_region_objects[idx].text_lines.append(new_text_line_object)
 
                         _delete_region_from_page(region.id)
                         offset = len(region_list) - len(updated_region_list)
                         updated_region_list.pop(i - offset)
 
                         # updated_region_list[i:i + 1] = new_region_objects
-                        
+
                         all_new_region_objects.extend(new_region_objects)
                         _add_regions_to_page(new_region_objects)
                 updated_region_list.extend(all_new_region_objects)
@@ -147,6 +168,7 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
 
     def save_page_xml(self, save_path):
         self.page_object.write_page_xml(save_path)
+
 
 if __name__ == '__main__':
     page_path = "/home/max/Downloads/transkribus_downloads/splitting_regions_example/splitting_regions_example/page/" \
@@ -176,7 +198,6 @@ if __name__ == '__main__':
     # plot_pagexml(page_old, image_path, plot_article=False, plot_legend=False, fill_regions=True,
     #              use_page_image_resolution=True)
     # plt.show()
-
 
     region_writer.merge_regions()
     new_regions = region_writer.page_object.get_regions()
