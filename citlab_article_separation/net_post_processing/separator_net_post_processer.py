@@ -1,7 +1,8 @@
-from citlab_python_util.parser.xml.page.page_constants import sSEPARATORREGION
+import argparse
 
 from citlab_article_separation.net_post_processing.region_net_post_processor_base import RegionNetPostProcessor
 from citlab_article_separation.net_post_processing.separator_region_to_page_writer import SeparatorRegionToPageWriter
+from citlab_python_util.parser.xml.page.page_constants import sSEPARATORREGION
 
 
 class SeparatorNetPostProcessor(RegionNetPostProcessor):
@@ -32,7 +33,7 @@ class SeparatorNetPostProcessor(RegionNetPostProcessor):
         """
         # for net_output in self.net_outputs_post:
         contours = self.apply_contour_detection(net_output, use_alpha_shape=False)
-        # contours = [self.remove_every_nth_point(contour, n=2, min_num_points=20, iterations=3) for contour in
+        # contours = [self.remove_every_nth_point(contour, n=2, min_num_points=20, iterations=2) for contour in
         #             contours]
 
         return {sSEPARATORREGION: contours}
@@ -55,34 +56,60 @@ class SeparatorNetPostProcessor(RegionNetPostProcessor):
 
 
 if __name__ == '__main__':
-    # ONB Test Set (3000 height)
-    # image_list = "/home/max/data/la/textblock_detection/newseye_tb_data/onb/tmp.lst"
-    # Independance_lux dataset (3000 height)
-    # image_list = '/home/max/data/la/textblock_detection/bnl_data/independance_lux/traindata_headers/val.lst'
-    image_list = "/home/max/sanomia_turusta_544852/images.lst"
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--image_list', type=str, required=True,
+                        help="Path to the image list for which separator information should be created.")
+    parser.add_argument('--path_to_pb', type=str, required=True,
+                        help="Path to the TensorFlow pb graph for creating the separator information")
+    parser.add_argument('--fixed_height', type=int, required=False,
+                        help="If parameter is given, the images will be scaled to this height by keeping the aspect "
+                             "ratio", default=None)
+    parser.add_argument('--scaling_factor', type=float, required=False,
+                        help="If no --fixed_height flag is given, use a predefined scaling factor on the images.",
+                        default=1.0)
+    parser.add_argument('--threshold', type=float, required=False,
+                        help="Threshold value that is used to convert the probability outputs of the neural network"
+                             "to 0 and 1 values", default=0.05)
 
-    # Textblock detection
-    path_to_pb_tb = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/newseye/" \
-                    "racetrack_onb_textblock_136/TB_aru_3000_height_scaling_train_only/export/" \
-                    "TB_aru_3000_height_scaling_train_only_2020-06-05.pb"
+    args = parser.parse_args()
 
-    # Header detection
-    # path_to_pb = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/independance_lux/headers/" \
-    #              "tb_headers_aru/export/tb_headers_aru_2020-06-04.pb"
-    path_to_pb_hd = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/newseye/" \
-                    "racetrack_onb_textblock_136/with_headings/TB_aru_3000_height/export/TB_aru_3000_height_2020-06-10.pb"
+    image_list = args.image_list
+    path_to_pb = args.path_to_pb
+    fixed_height = args.fixed_height
+    scaling_factor = args.scaling_factor
+    threshold = args.threshold
 
-    # Separators
-    path_to_pb_sp = "/home/max/devel/projects/python/aip_pixlab/models/separator_detection/SEP_aru_5300/export/" \
-                    "SEP_aru_5300_2020-06-10.pb"
+    post_processor = SeparatorNetPostProcessor(image_list, path_to_pb, fixed_height, scaling_factor, threshold)
+    post_processor.run()
 
-    # Comparison dbscan vs pixellabeling
+    # # ONB Test Set (3000 height)
+    # # image_list = "/home/max/data/la/textblock_detection/newseye_tb_data/onb/tmp.lst"
+    # # Independance_lux dataset (3000 height)
+    # # image_list = '/home/max/data/la/textblock_detection/bnl_data/independance_lux/traindata_headers/val.lst'
     # image_list = "/home/max/sanomia_turusta_544852/images.lst"
-    # tb_pp = SeparatorNetPostProcessor(image_list, path_to_pb_tb, fixed_height=1650, scaling_factor=1.0, threshold=0.2)
-
-    image_list = "/home/max/separator_splits_with_words/images.lst"
-
-    # tb_pp = SeparatorNetPostProcessor(image_list, path_to_pb_tb, fixed_height=None, scaling_factor=0.55, threshold=0.2)
-    # tb_pp = SeparatorNetPostProcessor(image_list, path_to_pb_hd, fixed_height=None, scaling_factor=0.55, threshold=0.2)
-    tb_pp = SeparatorNetPostProcessor(image_list, path_to_pb_sp, fixed_height=None, scaling_factor=1.0, threshold=0.05)
-    tb_pp.run()
+    #
+    # # Textblock detection
+    # path_to_pb_tb = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/newseye/" \
+    #                 "racetrack_onb_textblock_136/TB_aru_3000_height_scaling_train_only/export/" \
+    #                 "TB_aru_3000_height_scaling_train_only_2020-06-05.pb"
+    #
+    # # Header detection
+    # # path_to_pb = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/independance_lux/headers/" \
+    # #              "tb_headers_aru/export/tb_headers_aru_2020-06-04.pb"
+    # path_to_pb_hd = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/newseye/" \
+    #                 "racetrack_onb_textblock_136/with_headings/TB_aru_3000_height/export/TB_aru_3000_height_2020-06-10.pb"
+    #
+    # # Separators
+    # path_to_pb_sp = "/home/max/devel/projects/python/aip_pixlab/models/separator_detection/SEP_aru_5300/export/" \
+    #                 "SEP_aru_5300_2020-06-10.pb"
+    #
+    # # Comparison dbscan vs pixellabeling
+    # # image_list = "/home/max/sanomia_turusta_544852/images.lst"
+    # # tb_pp = SeparatorNetPostProcessor(image_list, path_to_pb_tb, fixed_height=1650, scaling_factor=1.0, threshold=0.2)
+    #
+    # image_list = "/home/max/separator_splits_with_words/images.lst"
+    #
+    # # tb_pp = SeparatorNetPostProcessor(image_list, path_to_pb_tb, fixed_height=None, scaling_factor=0.55, threshold=0.2)
+    # # tb_pp = SeparatorNetPostProcessor(image_list, path_to_pb_hd, fixed_height=None, scaling_factor=0.55, threshold=0.2)
+    # tb_pp = SeparatorNetPostProcessor(image_list, path_to_pb_sp, fixed_height=None, scaling_factor=1.0, threshold=0.05)
+    # tb_pp.run()
