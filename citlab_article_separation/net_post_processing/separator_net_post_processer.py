@@ -49,6 +49,7 @@ class SeparatorNetPostProcessor(RegionNetPostProcessor):
         # Load the region-to-page-writer and initalize it with the given page path and its region dictionary
         region_page_writer = SeparatorRegionToPageWriter(page_path, polygons_dict, image_path, self.fixed_height,
                                                          self.scaling_factor)
+        region_page_writer.remove_separator_regions_from_page()
         region_page_writer.merge_regions()
         region_page_writer.save_page_xml(page_path + ".xml")
 

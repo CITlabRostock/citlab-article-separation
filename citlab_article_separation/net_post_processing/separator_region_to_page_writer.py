@@ -14,6 +14,9 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
     def __init__(self, path_to_page, region_dict, image_path=None, fixed_height=None, scaling_factor=None):
         super().__init__(path_to_page, region_dict, image_path, fixed_height, scaling_factor)
 
+    def remove_separator_regions_from_page(self):
+        self.page_object.remove_regions(sSEPARATORREGION)
+
     def merge_regions(self):
         def _split_shapely_polygon(region_to_split_sh, region_compare_sh):
             difference = region_to_split_sh.difference(region_compare_sh)
