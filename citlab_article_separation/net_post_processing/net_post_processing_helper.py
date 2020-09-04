@@ -11,7 +11,7 @@ def load_image_paths(image_list):
     return [image_path.rstrip() for image_path in image_paths]
 
 
-def scale_image(image, fixed_height, scaling_factor):
+def scale_image(image, fixed_height=None, scaling_factor=1.0):
     # image_width, image_height = image.shape[:2]
     image_height, image_width = image.shape[:2]
 
@@ -22,15 +22,15 @@ def scale_image(image, fixed_height, scaling_factor):
         # if INTER_CUBIC is too slow try INTER_LINEAR
         image = cv2.resize(image, None, fx=sc, fy=sc, interpolation=cv2.INTER_CUBIC)
 
-    return image
+    return image, sc
 
 
 def load_and_scale_image(path_to_image, fixed_height, scaling_factor):
     image = cv2.imread(path_to_image)
-    image = scale_image(image, fixed_height, scaling_factor)
+    image, sc = scale_image(image, fixed_height, scaling_factor)
     image_grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) / 255.0
 
-    return image, image_grey
+    return image, image_grey, sc
 
 
 def load_graph(path_to_pb):

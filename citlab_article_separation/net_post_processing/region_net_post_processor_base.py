@@ -4,17 +4,15 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio.features
-from shapely import geometry
 from PIL import Image
-from citlab_python_util.geometry.util import alpha_shape
-from citlab_python_util.io.file_loader import get_page_path
 from matplotlib.collections import PolyCollection
-from copy import deepcopy
-
-from citlab_python_util.parser.xml.page.plot import plot_pagexml
 
 from citlab_article_separation.net_post_processing.net_post_processing_helper import load_image_paths, \
     load_and_scale_image, load_graph, get_net_output, apply_threshold
+from citlab_python_util.geometry.point import rescale_points
+from citlab_python_util.geometry.util import alpha_shape
+from citlab_python_util.io.file_loader import get_page_path
+from citlab_python_util.parser.xml.page.plot import plot_pagexml
 
 
 class RegionNetPostProcessor(ABC):
@@ -35,7 +33,7 @@ class RegionNetPostProcessor(ABC):
     def run(self):
         image_paths = load_image_paths(self.image_list)
         for image_path in image_paths:
-            image, image_grey = load_and_scale_image(image_path, self.fixed_height, self.scaling_factor)
+            image, image_grey, sc = load_and_scale_image(image_path, self.fixed_height, self.scaling_factor)
             self.images.append(image)
 
             # net_output has shape HWC
@@ -49,12 +47,16 @@ class RegionNetPostProcessor(ABC):
 
             self.net_outputs_post.append(net_output_post)
 
-            plot_pagexml(get_page_path(image_path), image_path, plot_article=False, plot_legend=False, fill_regions=True,
+            plot_pagexml(get_page_path(image_path), image_path, plot_article=False, plot_legend=False,
+                         fill_regions=True,
                          use_page_image_resolution=True)
             plt.show()
 
             # since there can be multiple region types put them in a dictionary
             polygons_dict = self.to_polygons(net_output_post)
+
+            # upscale polygons to the original image size
+            polygons_dict = self.rescale_polygons(polygons_dict, scaling_factor=1/sc)
 
             # self.plot_polygons(image, polygons_dict["SeparatorRegion"])
 
@@ -62,8 +64,6 @@ class RegionNetPostProcessor(ABC):
             plot_pagexml(page_object, image_path, plot_article=False, plot_legend=False, fill_regions=True,
                          use_page_image_resolution=True)
             plt.show()
-
-
 
             # self.net_output_polygons.append(polygons)
             # self.plot_polygons(image, self.net_output_polygons[-1])
@@ -164,6 +164,12 @@ class RegionNetPostProcessor(ABC):
                 net_output_new[output == i + 1] = 255
 
         return net_output_new
+
+    def rescale_polygons(self, polygons_dict, scaling_factor):
+        for region_name, polygon_list in polygons_dict.items():
+            polygons_dict[region_name] = [rescale_points(polygon, scaling_factor) for polygon in polygon_list]
+
+        return polygons_dict
 
 
 if __name__ == '__main__':
