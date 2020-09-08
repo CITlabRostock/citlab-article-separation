@@ -2,8 +2,10 @@ import argparse
 
 from citlab_article_separation.net_post_processing.region_net_post_processor_base import RegionNetPostProcessor
 from citlab_article_separation.net_post_processing.separator_region_to_page_writer import SeparatorRegionToPageWriter
+from citlab_python_util.logging import custom_logging
 from citlab_python_util.parser.xml.page.page_constants import sSEPARATORREGION
 
+logger = custom_logging.setup_custom_logger("SeparatorNetPostProcessor", level="info")
 
 class SeparatorNetPostProcessor(RegionNetPostProcessor):
 
@@ -46,11 +48,12 @@ class SeparatorNetPostProcessor(RegionNetPostProcessor):
         :param polygons_dict: dictionary with region types as keys and the corresponding list of polygons as values
         :return: Page object that can either be further processed or be written to
         """
-        # Load the region-to-page-writer and initalize it with the given page path and its region dictionary
+        # Load the region-to-page-writer and initialize it with the given page path and its region dictionary
         region_page_writer = SeparatorRegionToPageWriter(page_path, polygons_dict, image_path, self.fixed_height,
                                                          self.scaling_factor)
         region_page_writer.remove_separator_regions_from_page()
         region_page_writer.merge_regions()
+        logger.debug(f"Saving page {page_path}")
         region_page_writer.save_page_xml(page_path + ".xml")
 
         return region_page_writer.page_object
@@ -70,7 +73,7 @@ if __name__ == '__main__':
                         default=1.0)
     parser.add_argument('--threshold', type=float, required=False,
                         help="Threshold value that is used to convert the probability outputs of the neural network"
-                             "to 0 and 1 values", default=0.05)
+                             "to 0 and 1 values", default=0.5)
 
     args = parser.parse_args()
 

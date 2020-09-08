@@ -19,6 +19,8 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
 
     def merge_regions(self):
         def _split_shapely_polygon(region_to_split_sh, region_compare_sh):
+            region_to_split_sh = region_to_split_sh.buffer(0)
+            region_compare_sh = region_compare_sh.buffer(0)
             difference = region_to_split_sh.difference(region_compare_sh)
             if type(difference) == geometry.MultiPolygon or type(difference) == geometry.MultiLineString:
                 new_region_polys_sh = list(difference)
@@ -76,7 +78,7 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
                 for i, region in enumerate(region_list):
                     region_polygon_sh = geometry.Polygon(region.points.points_list)
                     if region_polygon_sh.intersects(sep_poly_sh):
-                        if region_polygon_sh.contains(sep_poly_sh):
+                        if region_polygon_sh.contains(sep_poly_sh) or sep_poly_sh.contains(region_polygon_sh):
                             # don't need to check the other regions, provided that we don't have overlapping regions
                             return False
 
@@ -92,6 +94,8 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
                             text_lines = region.text_lines
                             for text_line in text_lines:
                                 text_line_sh = geometry.Polygon(text_line.surr_p.points_list).buffer(0)
+                                if sep_poly_sh.contains(text_line_sh):
+                                    return False
                                 if text_line_sh.intersects(sep_poly_sh):
                                     text_line_splits_sh = _split_shapely_polygon(text_line_sh, sep_poly_sh)
                                     text_line_splits = [list(poly.exterior.coords) for poly in text_line_splits_sh]
