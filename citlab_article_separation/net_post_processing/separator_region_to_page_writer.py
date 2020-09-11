@@ -11,8 +11,9 @@ from citlab_python_util.parser.xml.page.plot import plot_pagexml
 
 
 class SeparatorRegionToPageWriter(RegionToPageWriter):
-    def __init__(self, path_to_page, region_dict, image_path=None, fixed_height=None, scaling_factor=None):
-        super().__init__(path_to_page, region_dict, image_path, fixed_height, scaling_factor)
+    def __init__(self, path_to_page, path_to_image=None, fixed_height=None, scaling_factor=None, region_dict=None):
+        super().__init__(path_to_page, path_to_image, fixed_height, scaling_factor)
+        self.region_dict = region_dict
 
     def remove_separator_regions_from_page(self):
         self.page_object.remove_regions(sSEPARATORREGION)
@@ -172,57 +173,3 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
             separator_id = self.page_object.get_unique_id(sSEPARATORREGION)
             separator_region = SeparatorRegion(separator_id, points=separator_polygon)
             self.page_object.add_region(separator_region)
-
-    def save_page_xml(self, save_path):
-        self.page_object.write_page_xml(save_path)
-
-
-if __name__ == '__main__':
-    page_path = "/home/max/Downloads/transkribus_downloads/splitting_regions_example/splitting_regions_example/page/" \
-                "DerGemeindebote-p02.xml"
-    image_path = "/home/max/Downloads/transkribus_downloads/splitting_regions_example/splitting_regions_example/" \
-                 "DerGemeindebote-p02.png"
-    region_dict = {sSEPARATORREGION: [[(1745, 193), (2142, 193), (2142, 2784), (1745, 2784)]]}
-    region_writer = SeparatorRegionToPageWriter(page_path, region_dict)
-
-    old_regions = region_writer.page_object.get_regions()
-    for region_type, region_list in old_regions.items():
-        for region in region_list:
-            print(region.id)
-            print(region.points.points_list)
-            if region_type == sTEXTREGION:
-                print("+" * 10)
-                print([text_line.id for text_line in region.text_lines])
-                print([text_line.surr_p.points_list for text_line in region.text_lines])
-                print([text_line.baseline.points_list for text_line in region.text_lines])
-                print("+" * 10)
-
-    print()
-    print(region_dict)
-    print()
-
-    # page_old = region_writer.page_object
-    # plot_pagexml(page_old, image_path, plot_article=False, plot_legend=False, fill_regions=True,
-    #              use_page_image_resolution=True)
-    # plt.show()
-
-    region_writer.merge_regions()
-    new_regions = region_writer.page_object.get_regions()
-    for region_type, region_list in new_regions.items():
-        for region in region_list:
-            print(region.id)
-            print(region.points.points_list)
-            if region_type == sTEXTREGION:
-                print("+" * 10)
-                print([text_line.id for text_line in region.text_lines])
-                print([text_line.surr_p.points_list for text_line in region.text_lines])
-                print([text_line.baseline.points_list for text_line in region.text_lines])
-                print("+" * 10)
-
-    # region_writer.save_page_xml(save_path="/home/max/page_example.xml")
-
-    region_writer.page_object.update_textlines()
-    page_new = region_writer.page_object
-    plot_pagexml(page_new, image_path, plot_article=False, plot_legend=False, fill_regions=True,
-                 use_page_image_resolution=True)
-    plt.show()

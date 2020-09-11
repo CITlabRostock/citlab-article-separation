@@ -40,10 +40,11 @@ class SeparatorNetPostProcessor(RegionNetPostProcessor):
 
         return {sSEPARATORREGION: contours}
 
-    def to_page_xml(self, page_path, polygons_dict, image_path=None):
+    def to_page_xml(self, page_path, image_path=None, polygons_dict=None, *args, **kwargs):
         """
         Write the polygon information given by `polygons_dict` coming from the `to_polygons` function to the page file
         in `page_path`.
+        :param **kwargs:
         :param page_path: path to the page file the region information should be written to
         :param polygons_dict: dictionary with region types as keys and the corresponding list of polygons as values
         :return: Page object that can either be further processed or be written to

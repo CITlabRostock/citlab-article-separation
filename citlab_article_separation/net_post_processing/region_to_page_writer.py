@@ -11,8 +11,7 @@ logger = custom_logging.setup_custom_logger(__name__)
 
 
 class RegionToPageWriter(ABC):
-    def __init__(self, path_to_page, region_dict, path_to_image=None, fixed_height=None, scaling_factor=None):
-        self.region_dict = region_dict
+    def __init__(self, path_to_page, path_to_image=None, fixed_height=None, scaling_factor=None, *args, **kwargs):
         self.scaling_factor = None
         if path_to_image is not None:
             image_width, image_height = get_image_dimensions(path_to_image)
@@ -28,26 +27,22 @@ class RegionToPageWriter(ABC):
                         img_h=int(self.scaling_factor * image_height))
         return Page(path_to_page)
 
-    @abstractmethod
-    def merge_regions(self):
-        """
-        Load regions from PAGE file (if existent) and merge them with the regions from the get_regions method.
-        """
-        pass
+    def save_page_xml(self, save_path):
+        self.page_object.write_page_xml(save_path)
 
-    def write_regions(self, create_backup=False):
-        """
-        Update and write the new regions into the PAGE file. IF `create_backup` is True, a backup of the original PAGE
-        file is created by appending the ".bak" extension.
-        """
-        for i in range(len(self.page_object_list)):
-            page_obj = self.page_object_list[i]
-            new_region_dict = self.new_region_list[i]
-            save_path = self.page_path_list[i]
-            if create_backup:
-                shutil.copyfile(self.page_path_list[i], self.page_path_list[i] + ".bak")
-            for region_type, region_list in new_region_dict.items():
-                page_obj.remove_regions(region_type)
-                for region in region_list:
-                    page_obj.add_region(region)
-            page_obj.write_page_xml(save_path)
+    # def write_regions(self, create_backup=False):
+    #     """
+    #     Update and write the new regions into the PAGE file. IF `create_backup` is True, a backup of the original PAGE
+    #     file is created by appending the ".bak" extension.
+    #     """
+    #     for i in range(len(self.page_object_list)):
+    #         page_obj = self.page_object_list[i]
+    #         new_region_dict = self.new_region_list[i]
+    #         save_path = self.page_path_list[i]
+    #         if create_backup:
+    #             shutil.copyfile(self.page_path_list[i], self.page_path_list[i] + ".bak")
+    #         for region_type, region_list in new_region_dict.items():
+    #             page_obj.remove_regions(region_type)
+    #             for region in region_list:
+    #                 page_obj.add_region(region)
+    #         page_obj.write_page_xml(save_path)

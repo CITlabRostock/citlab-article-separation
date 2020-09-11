@@ -106,7 +106,7 @@ class RegionNetPostProcessor(ABC):
         # blended_image.show()
 
     @abstractmethod
-    def to_page_xml(self, page_path, polygons_dict, image_path=None):
+    def to_page_xml(self, page_path, image_path=None, *args, **kwargs):
         pass
 
     def remove_every_nth_point(self, polygon, n=2, min_num_points=20, iterations=1):
