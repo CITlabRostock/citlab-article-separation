@@ -17,7 +17,7 @@ import numpy as np
 from citlab_python_util.image_processing.image_stats import get_image_dimensions
 
 
-class HeaderNetPostProcessor(RegionNetPostProcessor):
+class HeadingNetPostProcessor(RegionNetPostProcessor):
     def __init__(self, image_list, path_to_pb, fixed_height, scaling_factor, weight_dict=None, threshold=0.5):
         """
         :param image_list:
@@ -226,7 +226,7 @@ if __name__ == '__main__':
     threshold = args.threshold
     # weight_dict = {"net": 0.0, "stroke_width": 0.5, "text_height": 0.5}
 
-    post_processor = HeaderNetPostProcessor(image_list, path_to_pb, fixed_height, scaling_factor, weight_dict,
-                                            threshold)
+    post_processor = HeadingNetPostProcessor(image_list, path_to_pb, fixed_height, scaling_factor, weight_dict,
+                                             threshold)
     post_processor.run()
 
