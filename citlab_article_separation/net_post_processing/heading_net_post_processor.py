@@ -1,6 +1,8 @@
 import argparse
 from collections import Counter
 
+from citlab_python_util.logging.custom_logging import setup_custom_logger
+
 from citlab_python_util.io.file_loader import get_page_path
 
 from citlab_article_separation.net_post_processing.net_post_processing_helper import load_image_paths, \
@@ -15,6 +17,8 @@ from citlab_python_util.parser.xml.page.page_constants import TextRegionTypes
 
 import numpy as np
 from citlab_python_util.image_processing.image_stats import get_image_dimensions
+
+logger = setup_custom_logger("HeadingNetPostProcessor", "info")
 
 
 class HeadingNetPostProcessor(RegionNetPostProcessor):
@@ -116,6 +120,11 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
 
             if num_text_line_headings / len(text_region.text_lines) > 0.8:
                 page_object.get_child_by_id(page_object.page_doc, text_region.id)[0].set("type", TextRegionTypes.sHEADING)
+
+        logger.debug(f"Saving HeadingNetPostProcessor results to page {page_path}")
+        region_page_writer.save_page_xml(page_path + ".xml")
+
+        return region_page_writer.page_object
 
     def post_process(self, net_output):
         """

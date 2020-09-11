@@ -54,7 +54,7 @@ class SeparatorNetPostProcessor(RegionNetPostProcessor):
                                                          self.scaling_factor)
         region_page_writer.remove_separator_regions_from_page()
         region_page_writer.merge_regions()
-        logger.debug(f"Saving page {page_path}")
+        logger.debug(f"Saving SeparatorNetPostProcessor results to page {page_path}")
         region_page_writer.save_page_xml(page_path + ".xml")
 
         return region_page_writer.page_object
