@@ -20,6 +20,7 @@ class RegionGroundTruthGenerator(GroundTruthGenerator):
         self.image_regions_list = self.get_image_regions_list()
         self.separator_regions_list = self.get_separator_regions_list()
         self.text_regions_list = self.get_valid_text_regions()
+        self.heading_regions_list = self.get_valid_text_regions(region_type=page_constants.TextRegionTypes.sHEADING)
         self.use_bounding_box = use_bounding_box
         self.use_min_area_rect = use_min_area_rect
 
@@ -48,6 +49,7 @@ class RegionGroundTruthGenerator(GroundTruthGenerator):
             gt_channels = tuple(gt_channels)
 
             self.gt_imgs_lst.append(gt_channels)
+            self.valid_img_indizes.append(i)
         self.make_disjoint_all()
 
     def get_min_area_rect(self, points):
@@ -74,7 +76,19 @@ class RegionGroundTruthGenerator(GroundTruthGenerator):
                                                closed=True)
         return region_gt_img
 
-    def get_valid_text_regions(self, intersection_thresh=20, region_type='paragraph'):
+    def get_valid_text_regions(self, intersection_thresh=20, region_type=page_constants.TextRegionTypes.sPARAGRAPH):
+        """
+        Get valid TextRegions from the PAGE file, where we check for intersections with images.
+        If `intersection_thresh` is negative, ignore the intersection and return all text_regions of type
+        `region_type`.
+        :param intersection_thresh:
+        :param region_type:
+        :return:
+        """
+        if intersection_thresh < 0:
+            return [region for region in self.regions_list[page_constants.sTEXTREGION]
+                    if region.region_type == region_type]
+
         valid_text_regions_list = []
         for i, regions in enumerate(self.regions_list):
             valid_text_regions = []

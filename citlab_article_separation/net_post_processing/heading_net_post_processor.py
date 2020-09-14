@@ -89,7 +89,6 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
         text_line_height_min = np.min(text_line_height_list)
         text_line_height_max = np.max(text_line_height_list)
 
-        text_line_is_heading_dict = dict()
         net_weight = self.weight_dict["net"]
         stroke_width_weight = self.weight_dict["stroke_width"]
         text_line_height_weight = self.weight_dict["text_height"]
