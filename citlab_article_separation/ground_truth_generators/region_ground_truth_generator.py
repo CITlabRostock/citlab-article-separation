@@ -20,7 +20,8 @@ class RegionGroundTruthGenerator(GroundTruthGenerator):
         self.image_regions_list = self.get_image_regions_list()
         self.separator_regions_list = self.get_separator_regions_list()
         self.text_regions_list = self.get_valid_text_regions()
-        self.heading_regions_list = self.get_valid_text_regions(region_type=page_constants.TextRegionTypes.sHEADING)
+        self.heading_regions_list = self.get_valid_text_regions(intersection_thresh=-1,
+                                                                region_type=page_constants.TextRegionTypes.sHEADING)
         self.use_bounding_box = use_bounding_box
         self.use_min_area_rect = use_min_area_rect
 
