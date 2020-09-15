@@ -34,7 +34,7 @@ class SeparatorNetPostProcessor(RegionNetPostProcessor):
         attribute
         """
         # for net_output in self.net_outputs_post:
-        contours = self.apply_contour_detection(net_output, use_alpha_shape=False)
+        contours = self.apply_contour_detection2(net_output)
         # contours = [self.remove_every_nth_point(contour, n=2, min_num_points=20, iterations=2) for contour in
         #             contours]
 
@@ -50,8 +50,8 @@ class SeparatorNetPostProcessor(RegionNetPostProcessor):
         :return: Page object that can either be further processed or be written to
         """
         # Load the region-to-page-writer and initialize it with the given page path and its region dictionary
-        region_page_writer = SeparatorRegionToPageWriter(page_path, polygons_dict, image_path, self.fixed_height,
-                                                         self.scaling_factor)
+        region_page_writer = SeparatorRegionToPageWriter(page_path, image_path, self.fixed_height,
+                                                         self.scaling_factor, polygons_dict)
         region_page_writer.remove_separator_regions_from_page()
         region_page_writer.merge_regions()
         logger.debug(f"Saving SeparatorNetPostProcessor results to page {page_path}")
@@ -86,6 +86,9 @@ if __name__ == '__main__':
 
     post_processor = SeparatorNetPostProcessor(image_list, path_to_pb, fixed_height, scaling_factor, threshold)
     post_processor.run()
+
+    # /home/max/data/as/NewsEye_ONB_232_textblocks/images.lst
+
 
     # # ONB Test Set (3000 height)
     # # image_list = "/home/max/data/la/textblock_detection/newseye_tb_data/onb/tmp.lst"
