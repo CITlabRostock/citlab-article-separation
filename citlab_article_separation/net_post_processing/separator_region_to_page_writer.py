@@ -84,25 +84,28 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
                     text_line_splits = [list(poly.exterior.coords) for poly in text_line_splits_sh]
 
                     new_text_line_objects = _create_page_objects(text_line, text_line_splits)
+
                     for new_text_line_object in new_text_line_objects:
                         new_text_line_object.set_baseline(None)
-                        new_text_line_object.words = []
+                        if len(new_text_line_objects) != 1:
+                            new_text_line_object.words = []
 
                     # word_idx = np.argmax(
                     #     [geometry.Polygon(word.surr_p.points_list).buffer(0).distance(sep_poly_sh)
                     #      for word in text_line.words])
 
-                    for word in text_line.words:
-                        # Assumes that the words are in the right order
-                        word_polygon_sh = geometry.Polygon(word.surr_p.points_list).buffer(0)
-                        matching_textline_idx = np.argmax([word_polygon_sh.intersection(text_line_split_sh).area
-                                                           for text_line_split_sh in text_line_splits_sh])
-                        corr_textline = new_text_line_objects[matching_textline_idx]
-                        corr_textline.words.append(word)
+                    if len(new_text_line_objects) != 1:
+                        for word in text_line.words:
+                            # Assumes that the words are in the right order
+                            word_polygon_sh = geometry.Polygon(word.surr_p.points_list).buffer(0)
+                            matching_textline_idx = np.argmax([word_polygon_sh.intersection(text_line_split_sh).area
+                                                               for text_line_split_sh in text_line_splits_sh])
+                            corr_textline = new_text_line_objects[matching_textline_idx]
+                            corr_textline.words.append(word)
 
-                    if len(text_line.words) > 0:
-                        for new_text_line_object in new_text_line_objects:
-                            new_text_line_object.text = " ".join([word.text for word in new_text_line_object.words])
+                        if len(text_line.words) > 0:
+                            for new_text_line_object in new_text_line_objects:
+                                new_text_line_object.text = " ".join([word.text for word in new_text_line_object.words])
 
                     baseline_sh = geometry.LineString(
                         text_line.baseline.points_list) if text_line.baseline is not None else None

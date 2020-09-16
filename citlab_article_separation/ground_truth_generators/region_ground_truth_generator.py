@@ -87,8 +87,8 @@ class RegionGroundTruthGenerator(GroundTruthGenerator):
         :return:
         """
         if intersection_thresh < 0:
-            return [region for region in self.regions_list[page_constants.sTEXTREGION]
-                    if region.region_type == region_type]
+            return [[region for region in regions[page_constants.sTEXTREGION] if region.region_type == region_type]
+                    for regions in self.regions_list]
 
         valid_text_regions_list = []
         for i, regions in enumerate(self.regions_list):
