@@ -2,7 +2,7 @@ from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
-from shapely import geometry
+from shapely import geometry, validation
 
 from citlab_article_separation.net_post_processing.region_to_page_writer import RegionToPageWriter
 from citlab_python_util.parser.xml.page.page_constants import sSEPARATORREGION, sTEXTREGION
@@ -18,7 +18,75 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
     def remove_separator_regions_from_page(self):
         self.page_object.remove_regions(sSEPARATORREGION)
 
-    def merge_regions(self):
+    def convert_polygon_with_holes(self, polygon_sh):
+        def split_horiz_by_point(polygon, point):
+            """"""
+            assert polygon.geom_type == "Polygon" and point.geom_type == "Point"
+            nx, ny, xx, xy = polygon.bounds
+            if point.x < nx or point.x > xx:
+                return [polygon]
+
+            lEnv = geometry.LineString([(nx, ny), (point.x, xy)]).envelope
+            rEnv = geometry.LineString([(point.x, ny), (xx, xy)]).envelope
+
+            try:
+                return [polygon.intersection(lEnv), polygon.intersection(rEnv)]
+            except Exception as e:
+                print("Geometry error: %s" % validation.explain_validity(polygon))
+                return [polygon.buffer(0)]
+
+        parts = []
+        if polygon_sh.type == "MultiPolygon":
+            for p in polygon_sh.geoms:
+                parts.extend(self.convert_polygon_with_holes(p))
+        elif polygon_sh.type == "Polygon":
+            if len(polygon_sh.interiors):
+                pt = polygon_sh.interiors[0].centroid
+                halves = split_horiz_by_point(polygon_sh, pt)
+                for p in halves:
+                    parts.extend(self.convert_polygon_with_holes(p))
+            else:
+                parts = [polygon_sh]
+
+        return parts
+
+    def convert_polygon_with_holes2(self, polygon_sh):
+        def closest_pt(pt, ptset):
+            """"""
+            dist2 = np.sum((ptset - pt) ** 2, 1)
+            minidx = np.argmin(dist2)
+            return minidx
+
+        def cw_perpendicular(pt, norm=None):
+            """"""
+            d = np.sqrt((pt ** 2).sum()) or 1
+            if norm is None:
+                return np.array([pt[1], -pt[0]])
+            return np.array([pt[1], -pt[0]]) / d * norm
+
+        def lazy_short_join_gap(exter, inter, refpt, gap=0.000001):
+            """"""
+            exIdx = closest_pt(refpt, exter)
+
+            inIdx = closest_pt(exter[exIdx], inter)
+            print(exter[exIdx], inter[inIdx])
+            excwgap = exter[exIdx] + cw_perpendicular(inter[inIdx] - exter[exIdx], gap)
+            incwgap = inter[inIdx] + cw_perpendicular(exter[exIdx] - inter[inIdx], gap)
+            out = np.vstack((exter[:exIdx], excwgap, inter[inIdx:-1], inter[:inIdx], incwgap, exter[exIdx:]))
+            out[-1] = out[0]
+
+            return out
+
+        if len(polygon_sh.interiors):
+            ex = np.asarray(polygon_sh.exterior)
+            for inter in polygon_sh.interiors:
+                inArr = np.asarray(inter)
+                ex = lazy_short_join_gap(ex, inArr, np.asarray(inter.centroid))
+            poly = geometry.Polygon(ex)
+            print(len(list(poly.interiors)))
+        return poly
+
+    def merge_regions(self, remove_holes=True):
         def _split_shapely_polygon(region_to_split_sh, region_compare_sh):
             # region_to_split_sh = region_to_split_sh.buffer(0)
             # region_compare_sh = region_compare_sh.buffer(0)
@@ -254,9 +322,26 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
             if use_separator is not True:
                 continue
 
-            # Ignore the inner polygons and only write the outer ones
-            separator_polygon = separator_polygon[0]
+            if remove_holes and len(separator_polygon) > 1:
+                separator_polygon_ext = separator_polygon[0]
+                separator_polygon_int = separator_polygon[1:]
+                separator_polygon_int = [int_poly for int_poly in separator_polygon_int
+                                         if geometry.Polygon(int_poly).area > 1000]
+                separator_polygon_sh = geometry.Polygon(separator_polygon_ext, separator_polygon_int).buffer(0)
 
-            separator_id = self.page_object.get_unique_id(sSEPARATORREGION)
-            separator_region = SeparatorRegion(separator_id, points=separator_polygon)
-            self.page_object.add_region(separator_region)
+                separator_polygon_parts_sh = self.convert_polygon_with_holes(separator_polygon_sh)
+                separator_polygon_parts = [list(sep_part.exterior.coords) for sep_part in separator_polygon_parts_sh]
+                # separator_polygon = list(separator_polygon_sh.exterior.coords)
+
+                for separator_polygon_part in separator_polygon_parts:
+                    separator_id = self.page_object.get_unique_id(sSEPARATORREGION)
+                    separator_region = SeparatorRegion(separator_id, points=separator_polygon_part)
+                    self.page_object.add_region(separator_region)
+
+            else:
+                # Ignore the inner polygons and only write the outer ones
+                separator_polygon = separator_polygon[0]
+                separator_id = self.page_object.get_unique_id(sSEPARATORREGION)
+                separator_region = SeparatorRegion(separator_id, points=separator_polygon)
+                self.page_object.add_region(separator_region)
+
