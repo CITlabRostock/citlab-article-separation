@@ -9,8 +9,8 @@ logger = custom_logging.setup_custom_logger("SeparatorNetPostProcessor", level="
 
 class SeparatorNetPostProcessor(RegionNetPostProcessor):
 
-    def __init__(self, image_list, path_to_pb, fixed_height, scaling_factor, threshold):
-        super().__init__(image_list, path_to_pb, fixed_height, scaling_factor, threshold)
+    def __init__(self, image_list, path_to_pb, fixed_height, scaling_factor, threshold, gpu_devices):
+        super().__init__(image_list, path_to_pb, fixed_height, scaling_factor, threshold, gpu_devices)
 
     def post_process(self, net_output):
         """
@@ -75,6 +75,9 @@ if __name__ == '__main__':
     parser.add_argument('--threshold', type=float, required=False,
                         help="Threshold value that is used to convert the probability outputs of the neural network"
                              "to 0 and 1 values", default=0.5)
+    parser.add_argument('--gpu_devices', type=str, required=False,
+                        help='Which GPU devices to use, comma-separated integers. E.g. "0,1,2".',
+                        default='0')
 
     args = parser.parse_args()
 
@@ -83,8 +86,10 @@ if __name__ == '__main__':
     fixed_height = args.fixed_height
     scaling_factor = args.scaling_factor
     threshold = args.threshold
+    gpu_devices = args.gpu_devices
 
-    post_processor = SeparatorNetPostProcessor(image_list, path_to_pb, fixed_height, scaling_factor, threshold)
+    post_processor = SeparatorNetPostProcessor(image_list, path_to_pb, fixed_height, scaling_factor, threshold,
+                                               gpu_devices)
     post_processor.run()
 
     # /home/max/data/as/NewsEye_ONB_232_textblocks/images.lst
