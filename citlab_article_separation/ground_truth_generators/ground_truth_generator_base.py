@@ -156,7 +156,8 @@ class GroundTruthGenerator(ABC):
 
     def run_ground_truth_generation(self, save_dir, create_info_file=True):
         self.create_grey_images()
-        self.create_page_objects()
+        if len(self.page_object_lst) < 1:
+            self.create_page_objects()
         self.create_ground_truth_images()
 
         if create_info_file:
