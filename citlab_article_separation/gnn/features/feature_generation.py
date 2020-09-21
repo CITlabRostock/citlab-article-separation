@@ -98,18 +98,7 @@ def get_tb_similarities(text_regions, feature_extractor):
 
 
 def get_textline_stroke_widths_heights_dist_trafo(page_path, text_lines):
-    # we need the corresponding image
-    img_endings = [".jpg", ".jpeg", ".png", ".tif"]
-    base_name = os.path.splitext(os.path.basename(page_path))[0]
-    img_name = os.path.join(os.path.dirname(page_path), "../..", base_name)
-    img_path = None
-    if any([img_name.endswith(ending) for ending in img_endings]):
-        img_path = img_name
-    else:
-        for ending in img_endings:
-            if os.path.isfile(img_name + ending):
-                img_path = img_name + ending
-                break
+    img_path = get_img_from_page_path(page_path)
     if not img_path:
         raise ValueError(f"Could not find corresponding image file to pagexml\n{page_path}")
     # initialize SWT and textline labeling
@@ -221,8 +210,9 @@ def get_text_region_text_height_feature(text_region, textline_heights, norm=300.
 
 
 def get_text_region_heading_feature(text_region):
-    contains_heading = True if text_region.region_type.lower() == 'heading' else False
-    # contains_heading = False
+    contains_heading = False
+    if text_region.region_type.lower() == 'heading' or text_region.region_type.lower() == 'header':
+        contains_heading = True
     # # check if any of the text regions text lines are marked as heading
     # for text_line in text_region.text_lines:
     #     if text_line.get_heading():
@@ -599,6 +589,8 @@ def build_input_and_target_bc(page_path, external_data,
         node_feature.extend(get_text_region_stroke_width_feature(text_region, textline_stroke_widths))
         # text height feature (1-dim)
         node_feature.extend(get_text_region_text_height_feature(text_region, textline_heights))
+        # heading feature
+        node_feature.extend(get_text_region_heading_feature(text_region))
         # external features
         for ext in external_data:
             if 'node_features' in ext:
@@ -673,7 +665,7 @@ def build_input_and_target_bc(page_path, external_data,
             if 'edge_features' in ext:
                 try:
                     edge_feature.extend(ext['edge_features'][text_region_a.id][text_region_b.id])
-                except KeyError:
+                except (KeyError, TypeError):
                     try:
                         edge_feature.extend(ext['edge_features']['default'])
                     except KeyError:
@@ -793,7 +785,6 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
                             interaction="delaunay",
                             visual_regions=True,
                             tb_similarity_setup=(None, None)):
-    create_default_dir = False if out_path else True
     # Get page paths
     with open(page_list, "r") as page_files:
         page_paths = [os.path.abspath(line.rstrip()) for line in page_files.readlines()]
@@ -806,9 +797,12 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
             json_data.append(json.load(json_file))
 
     # Setup textblock similarity feature extractor
-    sim_feat_extractor = TextblockSimilarity(language=tb_similarity_setup[0], wv_path=tb_similarity_setup[0])
+    sim_feat_extractor = None
+    if tb_similarity_setup[0] and tb_similarity_setup[1]:
+        sim_feat_extractor = TextblockSimilarity(language=tb_similarity_setup[0], wv_path=tb_similarity_setup[1])
 
     # Get data from pagexml and write to json
+    create_default_dir = False if out_path else True
     out_counter = 0
     for page_path in page_paths:
         file_name = os.path.basename(page_path)
@@ -863,6 +857,68 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
             print(f"Wrote {out}")
             out_counter += 1
     print(f"Wrote {out_counter} files.")
+
+
+def get_img_from_page_path(page_path):
+    # go up the page folder, remove .xml ending and check for img file
+    img_endings = ("tif", "jpg", "png")
+    img_path = re.sub(r'/page/([-\w.]+)\.xml$', r'/\1', page_path)
+    for ending in img_endings:
+        if img_path.endswith(ending):
+            if os.path.isfile(img_path):
+                return img_path
+    # go up the page folder, substitute .xml ending and check for img file
+    img_path = re.sub(r'/page/([-\w.]+)\.xml$', r'/\1.tif', page_path)
+    if not os.path.isfile(img_path):
+        img_path = re.sub(r'tif$', r'png', img_path)
+        if not os.path.isfile(img_path):
+            img_path = re.sub(r'png$', r'jpg', img_path)
+            if not os.path.isfile(img_path):
+                raise IOError(f"No image file (tif, png, jpg) found to given pagexml {page_path}")
+    return img_path
+
+
+def get_img_from_json_path(json_path):
+    # go up the json folder, remove .json ending and check for img file
+    img_endings = ("tif", "jpg", "png")
+    img_path = re.sub(r'/json\w*/([-\w.]+)\.json$', r'/\1', json_path)
+    for ending in img_endings:
+        if img_path.endswith(ending):
+            if os.path.isfile(img_path):
+                return img_path
+    # go up the json folder, substitute .json ending and check for img file
+    img_path = re.sub(r'/json\w*/([-\w.]+)\.json$', r'/\1.tif', json_path)
+    if not os.path.isfile(img_path):
+        img_path = re.sub(r'tif$', r'png', img_path)
+        if not os.path.isfile(img_path):
+            img_path = re.sub(r'png$', r'jpg', img_path)
+            if not os.path.isfile(img_path):
+                raise IOError("No image file (tif, png, jpg) found to given json ", json_path)
+    return img_path
+
+
+def get_page_from_img_path(img_path):
+    # go into page folder, append .xml and check for pageXML file
+    page_path = re.sub(r'/([-\w.]+)$', r'/page/\1.xml', img_path)
+    if os.path.isfile(page_path):
+        return page_path
+    # go into page folder, substitute img ending for .xml and check for pageXML file
+    page_path = re.sub(r'/([-\w.]+)\.\w+$', r'/page/\1.xml', img_path)
+    if not os.path.isfile(page_path):
+        raise IOError("No pagexml file found to given img file ", img_path)
+    return page_path
+
+
+def get_page_from_json_path(json_path):
+    # go into page folder, append .xml and check for pageXML file
+    page_path = re.sub(r'/json\w*/([-\w.]+)$', r'/page/\1.xml', json_path)
+    if os.path.isfile(page_path):
+        return page_path
+    # go into page folder, substitute .json for .xml and check for pageXML file
+    page_path = re.sub(r'/json\w*/([-\w.]+)\.json$', r'/page/\1.xml', json_path)
+    if not os.path.isfile(page_path):
+        raise IOError("No pagexml file found to given json file ", json_path)
+    return page_path
 
 
 if __name__ == '__main__':
