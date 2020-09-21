@@ -16,7 +16,7 @@ from citlab_python_util.parser.xml.page.plot import plot_pagexml
 
 
 class RegionNetPostProcessor(ABC):
-    def __init__(self, image_list, path_to_pb, fixed_height, scaling_factor, threshold=None):
+    def __init__(self, image_list, path_to_pb, fixed_height, scaling_factor, threshold=None, gpu_devices='0'):
         self.image_list = image_list
         self.fixed_height = fixed_height
         self.scaling_factor = scaling_factor
@@ -28,6 +28,8 @@ class RegionNetPostProcessor(ABC):
         self.net_outputs = []
         self.net_outputs_post = []
 
+        self.gpu_devices = gpu_devices
+
         # self.net_output_polygons = []
 
     def run(self):
@@ -37,7 +39,7 @@ class RegionNetPostProcessor(ABC):
             self.images.append(image)
 
             # net_output has shape HWC
-            net_output = get_net_output(image_grey, self.pb_graph)
+            net_output = get_net_output(image_grey, self.pb_graph, gpu_device=self.gpu_devices)
             net_output = np.array(net_output * 255, dtype=np.uint8)
             self.net_outputs.append(net_output)
             net_output = apply_threshold(net_output, self.threshold)
@@ -60,7 +62,7 @@ class RegionNetPostProcessor(ABC):
 
             # self.plot_polygons(image, polygons_dict["SeparatorRegion"])
 
-            page_object = self.to_page_xml(get_page_path(image_path), polygons_dict, image_path=image_path)
+            page_object = self.to_page_xml(get_page_path(image_path), image_path=image_path, polygons_dict=polygons_dict)
             # plot_pagexml(page_object, image_path, plot_article=False, plot_legend=False, fill_regions=True,
             #              use_page_image_resolution=True)
             # plt.show()
@@ -133,6 +135,18 @@ class RegionNetPostProcessor(ABC):
 
         return contours
 
+    def apply_contour_detection2(self, binary_image):
+        """
+        Given a binary image `binary_image` the contours are calculated. This can result in Polygons with outer AND
+        inner points
+        :param binary_image:
+        :return:
+        """
+        contours = rasterio.features.shapes(binary_image, connectivity=8)
+        contours = [p[0]['coordinates'] for p in contours if p[1] == 255]
+
+        return contours
+
     @abstractmethod
     def post_process(self, net_output):
         pass
@@ -167,7 +181,11 @@ class RegionNetPostProcessor(ABC):
 
     def rescale_polygons(self, polygons_dict, scaling_factor):
         for region_name, polygon_list in polygons_dict.items():
-            polygons_dict[region_name] = [rescale_points(polygon, scaling_factor) for polygon in polygon_list]
+            new_polygon_list = []
+            for polygon in polygon_list:
+                new_polygon_list.append([rescale_points(poly, scaling_factor) for poly in polygon])
+            # polygons_dict[region_name] = [rescale_points(polygon, scaling_factor) for polygon in polygon_list]
+            polygons_dict[region_name] = new_polygon_list
 
         return polygons_dict
 

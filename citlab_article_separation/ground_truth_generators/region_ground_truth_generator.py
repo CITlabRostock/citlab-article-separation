@@ -15,7 +15,6 @@ class RegionGroundTruthGenerator(GroundTruthGenerator):
     def __init__(self, path_to_img_lst, max_resolution=(0, 0), scaling_factor=1.0, use_bounding_box=False,
                  use_min_area_rect=False):
         super().__init__(path_to_img_lst, max_resolution, scaling_factor)
-        self.create_page_objects()
         self.regions_list = [page.get_regions() for page in self.page_object_lst]
         self.image_regions_list = self.get_image_regions_list()
         self.separator_regions_list = self.get_separator_regions_list()
@@ -87,8 +86,8 @@ class RegionGroundTruthGenerator(GroundTruthGenerator):
         :return:
         """
         if intersection_thresh < 0:
-            return [region for region in self.regions_list[page_constants.sTEXTREGION]
-                    if region.region_type == region_type]
+            return [[region for region in regions[page_constants.sTEXTREGION] if region.region_type == region_type]
+                    for regions in self.regions_list]
 
         valid_text_regions_list = []
         for i, regions in enumerate(self.regions_list):
