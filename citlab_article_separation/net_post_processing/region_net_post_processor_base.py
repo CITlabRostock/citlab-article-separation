@@ -64,9 +64,9 @@ class RegionNetPostProcessor(ABC):
 
             page_object = self.to_page_xml(get_page_path(image_path), image_path=image_path,
                                            polygons_dict=polygons_dict)
-            plot_pagexml(page_object, image_path, plot_article=False, plot_legend=False, fill_regions=True,
-                         use_page_image_resolution=True)
-            plt.show()
+            # plot_pagexml(page_object, image_path, plot_article=False, plot_legend=False, fill_regions=True,
+            #              use_page_image_resolution=True)
+            # plt.show()
 
             # self.net_output_polygons.append(polygons)
             # self.plot_polygons(image, self.net_output_polygons[-1])
