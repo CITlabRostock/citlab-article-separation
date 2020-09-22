@@ -183,7 +183,7 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
         return prob_sum / (bounding_box.width * bounding_box.height)
 
     def run(self):
-        image_paths = load_image_paths(self.image_list)
+        image_paths = load_image_paths(self.image_paths)
         for image_path in image_paths:
             image, image_grey, sc = load_and_scale_image(image_path, self.fixed_height, self.scaling_factor)
             self.images.append(image)

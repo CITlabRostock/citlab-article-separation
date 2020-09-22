@@ -17,7 +17,8 @@ from citlab_python_util.parser.xml.page.plot import plot_pagexml
 
 class RegionNetPostProcessor(ABC):
     def __init__(self, image_list, path_to_pb, fixed_height, scaling_factor, threshold=None, gpu_devices='0'):
-        self.image_list = image_list
+        # self.image_list = image_list
+        self.image_paths = load_image_paths(image_list)
         self.fixed_height = fixed_height
         self.scaling_factor = scaling_factor
         self.threshold = threshold
@@ -32,8 +33,43 @@ class RegionNetPostProcessor(ABC):
 
         # self.net_output_polygons = []
 
-    def run(self):
-        image_paths = load_image_paths(self.image_list)
+    def run2(self, image_path=None):
+        image, image_grey, sc = load_and_scale_image(image_path, self.fixed_height, self.scaling_factor)
+        self.images.append(image)
+
+        # net_output has shape HWC
+        net_output = get_net_output(image_grey, self.pb_graph, gpu_device=self.gpu_devices)
+        net_output = np.array(net_output * 255, dtype=np.uint8)
+        self.net_outputs.append(net_output)
+        net_output = apply_threshold(net_output, self.threshold)
+
+        # The post processing depends on the region to be saved (TextRegion, SeparatorRegion, ImageRegion, ...)
+        net_output_post = self.post_process(net_output)
+
+        self.net_outputs_post.append(net_output_post)
+
+        # plot_pagexml(get_page_path(image_path), image_path, plot_article=False, plot_legend=False,
+        #              fill_regions=True,
+        #              use_page_image_resolution=True)
+        # plt.show()
+
+        # since there can be multiple region types put them in a dictionary
+        polygons_dict = self.to_polygons(net_output_post)
+
+        # upscale polygons to the original image size
+        polygons_dict = self.rescale_polygons(polygons_dict, scaling_factor=1 / sc)
+
+        # self.plot_polygons(image, polygons_dict["SeparatorRegion"])
+
+        page_object = self.to_page_xml(get_page_path(image_path), image_path=image_path, polygons_dict=polygons_dict)
+        # plot_pagexml(page_object, image_path, plot_article=False, plot_legend=False, fill_regions=True,
+        #              use_page_image_resolution=True)
+        # plt.show()
+
+    def run(self, image_paths=None):
+        if image_paths is None:
+            image_paths = self.image_paths
+        # image_paths = load_image_paths(image_list)
         for image_path in image_paths:
             image, image_grey, sc = load_and_scale_image(image_path, self.fixed_height, self.scaling_factor)
             self.images.append(image)

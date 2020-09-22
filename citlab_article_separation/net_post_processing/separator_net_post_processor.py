@@ -55,7 +55,7 @@ class SeparatorNetPostProcessor(RegionNetPostProcessor):
         region_page_writer.remove_separator_regions_from_page()
         region_page_writer.merge_regions()
         logger.debug(f"Saving SeparatorNetPostProcessor results to page {page_path}")
-        region_page_writer.save_page_xml(page_path + ".xml")
+        # region_page_writer.save_page_xml(page_path + ".xml")
 
         return region_page_writer.page_object
 
@@ -78,6 +78,9 @@ if __name__ == '__main__':
     parser.add_argument('--gpu_devices', type=str, required=False,
                         help='Which GPU devices to use, comma-separated integers. E.g. "0,1,2".',
                         default='0')
+    parser.add_argument('--num_threads', type=int, required=False,
+                        help="Run the post processing in parallel on a given number of threads. The `gpu_devices` flag"
+                             "is ignored if num_threads > 1.", default=0)
 
     args = parser.parse_args()
 
@@ -86,11 +89,35 @@ if __name__ == '__main__':
     fixed_height = args.fixed_height
     scaling_factor = args.scaling_factor
     threshold = args.threshold
-    gpu_devices = args.gpu_devices
+    num_threads = args.num_threads
 
-    post_processor = SeparatorNetPostProcessor(image_list, path_to_pb, fixed_height, scaling_factor, threshold,
-                                               gpu_devices)
-    post_processor.run()
+    import time
+
+    # Time for 4 pages with Threading (num_threads = 4): 51.33s
+    # Time for 4 pages without Threading: 94.99s
+    #
+    # The following pages have no baselines
+    # Time for 112 pages with Threading (num_threads = 4): 558.50s
+    # Time for 112 pages with Threading (num_threads = 8): 554.71s
+    # Time for 112 pages without Threading: 866.80s
+
+    start = time.time()
+    if num_threads > 1:
+        from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+        gpu_devices = ""
+        post_processor = SeparatorNetPostProcessor(image_list, path_to_pb, fixed_height, scaling_factor, threshold,
+                                                   gpu_devices)
+        print(post_processor.image_paths)
+        with ThreadPoolExecutor(num_threads) as executor:
+            [executor.submit(post_processor.run2, image_path) for image_path in post_processor.image_paths]
+
+    else:
+        gpu_devices = args.gpu_devices
+        post_processor = SeparatorNetPostProcessor(image_list, path_to_pb, fixed_height, scaling_factor, threshold,
+                                                   gpu_devices)
+        post_processor.run()
+
+    print(f"Execution took {time.time() - start} seconds")
 
     # /home/max/data/as/NewsEye_ONB_232_textblocks/images.lst
 
