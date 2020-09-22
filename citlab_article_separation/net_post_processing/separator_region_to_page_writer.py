@@ -177,6 +177,7 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
 
                     baseline_sh = geometry.LineString(
                         text_line.baseline.points_list) if text_line.baseline is not None else None
+                    baseline_splits = []
                     if baseline_sh is not None and baseline_sh.intersects(sep_poly_sh):
                         baseline_splits = _split_shapely_polygon(baseline_sh, sep_poly_sh)
                     elif baseline_sh is not None:
