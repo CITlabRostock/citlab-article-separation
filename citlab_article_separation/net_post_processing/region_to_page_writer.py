@@ -30,6 +30,9 @@ class RegionToPageWriter(ABC):
     def save_page_xml(self, save_path):
         self.page_object.write_page_xml(save_path)
 
+    def remove_region_by_type(self, region_type):
+        self.page_object.remove_regions(region_type)
+
     # def write_regions(self, create_backup=False):
     #     """
     #     Update and write the new regions into the PAGE file. IF `create_backup` is True, a backup of the original PAGE

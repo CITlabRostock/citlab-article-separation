@@ -4,13 +4,24 @@ from citlab_article_separation.net_post_processing.region_net_post_processor_bas
 from citlab_article_separation.net_post_processing.separator_region_to_page_writer import SeparatorRegionToPageWriter
 from citlab_python_util.logging import custom_logging
 from citlab_python_util.parser.xml.page.page_constants import sSEPARATORREGION
+from citlab_python_util.geometry.point import rescale_points
 
 logger = custom_logging.setup_custom_logger("SeparatorNetPostProcessor", level="info")
+
 
 class SeparatorNetPostProcessor(RegionNetPostProcessor):
 
     def __init__(self, image_list, path_to_pb, fixed_height, scaling_factor, threshold, gpu_devices):
         super().__init__(image_list, path_to_pb, fixed_height, scaling_factor, threshold, gpu_devices)
+
+    def rescale_polygons(self, polygons_dict, scaling_factor):
+        for region_name, polygon_list in polygons_dict.items():
+            new_polygon_list = []
+            for polygon in polygon_list:
+                new_polygon_list.append([rescale_points(poly, scaling_factor) for poly in polygon])
+            polygons_dict[region_name] = new_polygon_list
+
+        return polygons_dict
 
     def post_process(self, net_output):
         """
@@ -93,7 +104,6 @@ if __name__ == '__main__':
     post_processor.run()
 
     # /home/max/data/as/NewsEye_ONB_232_textblocks/images.lst
-
 
     # # ONB Test Set (3000 height)
     # # image_list = "/home/max/data/la/textblock_detection/newseye_tb_data/onb/tmp.lst"
