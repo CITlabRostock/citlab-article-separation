@@ -15,19 +15,16 @@ class TextRegionToPageWriter(RegionToPageWriter):
         self.remove_region_by_type(sTEXTREGION)
 
     def overwrite_text_regions(self):
-        print("START OVERWRITING OF TEXT LINES")
         text_lines = self.page_object.get_textlines(self.page_object.page_doc)
         self.remove_text_regions_from_page()
         text_regions = self.region_dict[sTEXTREGION]
 
-        print("Creating text region objects and shapely Polygons")
         text_regions_obj, text_regions_sh = [], []
         for i in range(len(text_regions)):
             text_region_id = sTEXTREGION + "_" + str(i + 1)
             text_regions_obj.append(TextRegion(text_region_id, points=text_regions[i], text_lines=[]))
             text_regions_sh.append(geometry.Polygon(text_regions[i]).buffer(0))
 
-        print("Iterate over the text lines")
         for text_line in text_lines:
             text_line_sh = geometry.Polygon(text_line.surr_p.points_list)
             text_region_idx = int(np.argmax([text_line_sh.intersection(text_region_sh).area
