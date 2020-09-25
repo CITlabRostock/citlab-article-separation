@@ -69,28 +69,26 @@ if __name__ == '__main__':
     stroke_width_weight = args.stroke_width_weight
     text_height_weight = args.text_height_weight
 
-    net_weight = 0.33
-    stroke_width_weight = 0.33
-    text_height_weight = 0.33
+    # net_weight = 0.33
+    # stroke_width_weight = 0.33
+    # text_height_weight = 0.33
 
     weight_dict = {"net": net_weight,
                    "stroke_width": stroke_width_weight,
                    "text_height": text_height_weight}
 
-    path_to_gt_list = "/home/max/data/la/heading_detection/post_process_experiments/image_paths.lst"
-
-    path_to_gt_list = '/home/max/data/la/heading_detection/post_process_experiments/dummy_image_paths.lst'
-    path_to_pb = "/home/max/data/la/heading_detection/post_process_experiments/HD_ru_3000_export_best_2020-09-22.pb"
-    fixed_height = 500
-    is_heading_threshold = 0.5
+    # path_to_gt_list = "/home/max/data/la/heading_detection/post_process_experiments/image_paths.lst"
+    #
+    # path_to_gt_list = '/home/max/data/la/heading_detection/post_process_experiments/dummy_image_paths.lst'
+    # path_to_pb = "/home/max/data/la/heading_detection/post_process_experiments/HD_ru_3000_export_best_2020-09-22.pb"
+    # fixed_height = 500
+    # is_heading_threshold = 0.5
 
     image_paths = load_list_file(path_to_gt_list)
 
     post_processor = HeadingNetPostProcessor(path_to_gt_list, path_to_pb, fixed_height, scaling_factor=None,
                                              weight_dict=weight_dict, threshold=is_heading_threshold)
     page_objects_hyp = post_processor.run()
-    if len(page_objects_hyp) != len(image_paths):
-        raise Exception("Length of HYP page objects and GT objects must be equal!")
 
     for i, image_path in enumerate(image_paths):
         xml_path = get_page_path(image_path)
