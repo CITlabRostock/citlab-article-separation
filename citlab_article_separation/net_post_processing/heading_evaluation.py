@@ -58,6 +58,9 @@ if __name__ == '__main__':
     parser.add_argument('--net_weight', type=float, required=False, help="Weight the net output feature.")
     parser.add_argument('--stroke_width_weight', type=float, required=False, help="Weight the stroke width feature.")
     parser.add_argument('--text_height_weight', type=float, required=False, help="Weight the text line height feature.")
+    parser.add_argument('--gpu_devices', type=str, required=False,
+                        help='Which GPU devices to use, comma-separated integers. E.g. "0,1,2".',
+                        default='0')
 
     args = parser.parse_args()
 
