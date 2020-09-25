@@ -54,7 +54,12 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
         text_line_height_dict = dict()
         text_line_net_prob_dict = dict()
         for text_line in text_lines:
-            text_line_stroke_width, text_line_height = self.get_swt_features_textline(swt_feature_image, text_line)
+            if text_line.surr_p is None:
+                text_line_stroke_width = 0
+                text_line_height = 0
+            else:
+                text_line_stroke_width, text_line_height = self.get_swt_features_textline(swt_feature_image, text_line)
+
             text_line_stroke_width_dict[text_line.id] = text_line_stroke_width
             text_line_height_dict[text_line.id] = text_line_height
             text_line_net_prob_dict[text_line.id] = self.get_net_prob_for_text_line(net_output_post, text_line,
@@ -108,6 +113,9 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
                 page_object.set_custom_attr(text_line_nd, "structure", "semantic_type", TextRegionTypes.sHEADING)
 
         for text_region in region_page_writer.page_object.get_text_regions():
+            page_nd = page_object.get_child_by_id(page_object.page_doc, text_region.id)[0]
+            page_nd.set("type", TextRegionTypes.sPARAGRAPH)
+
             if not text_region.text_lines:
                 continue
 
@@ -117,8 +125,10 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
                     if text_line.custom['structure']['semantic_type'] == TextRegionTypes.sHEADING:
                         num_text_line_headings += 1
 
-            if num_text_line_headings / len(text_region.text_lines) > 0.8:
-                page_object.get_child_by_id(page_object.page_doc, text_region.id)[0].set("type", TextRegionTypes.sHEADING)
+            # if num_text_line_headings / len(text_region.text_lines) > 0.8:
+            # If one text line is a heading the whole region gets classified as a heading
+            if num_text_line_headings > 0:
+                page_nd.set('type', TextRegionTypes.sHEADING)
 
         logger.debug(f"Saving HeadingNetPostProcessor results to page {page_path}")
         region_page_writer.save_page_xml(page_path + ".xml")
@@ -132,7 +142,7 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
         :return:
         """
         # Ignore the other class
-        return net_output[:, :, 0]
+        return net_output[:, :, 0] / 255
 
     def get_swt_features_image(self, image_path):
         """
@@ -171,19 +181,22 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
 
     def get_net_prob_for_text_line(self, net_output, text_line, scaling_factor):
         # since we use a scaling factor for the net_output, we need a rescaled bounding box
+        if text_line.surr_p is None:
+            return 0
         text_line_polygon = text_line.surr_p.to_polygon()
         text_line_polygon.rescale(scaling_factor)
         bounding_box = text_line_polygon.get_bounding_box()
         xa, xb = bounding_box.x, bounding_box.x + bounding_box.width
         ya, yb = bounding_box.y, bounding_box.y + bounding_box.height
 
-        net_output_text_line = net_output[ya:yb + 1, xa:xb + 1]
+        net_output_text_line = net_output[ya:yb, xa:xb]
         prob_sum = np.sum(net_output_text_line)
 
         return prob_sum / (bounding_box.width * bounding_box.height)
 
     def run(self):
         image_paths = load_image_paths(self.image_list)
+        new_page_objects = []
         for image_path in image_paths:
             image, image_grey, sc = load_and_scale_image(image_path, self.fixed_height, self.scaling_factor)
             self.images.append(image)
@@ -201,6 +214,10 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
             swt_feature_image = self.get_swt_features_image(image_path)
 
             page_object = self.to_page_xml(get_page_path(image_path), image_path, net_output_post, swt_feature_image)
+
+            new_page_objects.append(page_object)
+
+        return new_page_objects
 
 
 if __name__ == '__main__':
