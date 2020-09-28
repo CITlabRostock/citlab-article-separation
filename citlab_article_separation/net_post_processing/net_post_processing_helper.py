@@ -58,8 +58,11 @@ def get_net_output(image, pb_graph: tf.Graph, gpu_device="0"):
         image = np.expand_dims(image, axis=-1)
         image = np.expand_dims(image, axis=0)
 
-    session_conf = tf.ConfigProto()
-    session_conf.gpu_options.visible_device_list = gpu_device
+    if gpu_device == '':
+        session_conf = tf.ConfigProto(device_count={'GPU': 0})
+    else:
+        session_conf = tf.ConfigProto()
+        session_conf.gpu_options.visible_device_list = gpu_device
 
     with tf.Session(graph=pb_graph, config=session_conf) as sess:
         x = sess.graph.get_tensor_by_name('inImg:0')
