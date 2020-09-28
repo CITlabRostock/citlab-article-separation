@@ -62,8 +62,11 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
 
             text_line_stroke_width_dict[text_line.id] = text_line_stroke_width
             text_line_height_dict[text_line.id] = text_line_height
-            text_line_net_prob_dict[text_line.id] = self.get_net_prob_for_text_line(net_output_post, text_line,
-                                                                                    region_page_writer.scaling_factor)
+            if self.weight_dict['net'] == 0 or net_output_post is None:
+                text_line_net_prob_dict[text_line.id] = 0
+            else:
+                text_line_net_prob_dict[text_line.id] = self.get_net_prob_for_text_line(net_output_post, text_line,
+                                                                                        region_page_writer.scaling_factor)
 
         # Get the most common stroke width and text height (median vs mode - or combination of both?)
         text_line_stroke_width_list = list(text_line_stroke_width_dict.values())
@@ -202,13 +205,16 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
             self.images.append(image)
 
             # net_output has shape HWC
-            net_output = get_net_output(image_grey, self.pb_graph)
-            net_output = np.array(net_output * 255, dtype=np.uint8)
-            self.net_outputs.append(net_output)
+            if self.weight_dict['net'] > 0:
+                net_output = get_net_output(image_grey, self.pb_graph)
+                net_output = np.array(net_output * 255, dtype=np.uint8)
+                self.net_outputs.append(net_output)
 
-            # remove the "garbage" channel
-            net_output_post = self.post_process(net_output)
-            self.net_outputs_post.append(net_output_post)
+                # remove the "garbage" channel
+                net_output_post = self.post_process(net_output)
+                self.net_outputs_post.append(net_output_post)
+            else:
+                net_output_post = None
 
             # get swt feature image and use it for heading classification
             swt_feature_image = self.get_swt_features_image(image_path)
