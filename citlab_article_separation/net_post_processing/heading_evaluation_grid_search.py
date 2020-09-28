@@ -28,8 +28,7 @@ if __name__ == "__main__":
     PATH_TO_PB = cmd_args.path_to_pb
     LOG_FILE_FOLDER = cmd_args.log_file_folder
 
-    num_processes = cpu_count()
-    num_processes = 1
+    num_processes = cpu_count() // 2
     with concurrent.futures.ProcessPoolExecutor(num_processes) as executor:
         fixed_heights = range(600, 1300, 100)
         thresholds = range(4, 10, 1)
