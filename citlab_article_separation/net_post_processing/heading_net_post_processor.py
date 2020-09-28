@@ -197,7 +197,7 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
 
         return prob_sum / (bounding_box.width * bounding_box.height)
 
-    def run(self):
+    def run(self, gpu_device='0'):
         image_paths = load_image_paths(self.image_list)
         new_page_objects = []
         for image_path in image_paths:
@@ -206,7 +206,7 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
 
             # net_output has shape HWC
             if self.weight_dict['net'] > 0:
-                net_output = get_net_output(image_grey, self.pb_graph)
+                net_output = get_net_output(image_grey, self.pb_graph, gpu_device)
                 net_output = np.array(net_output * 255, dtype=np.uint8)
                 self.net_outputs.append(net_output)
 
@@ -250,6 +250,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    gpu_devices = args.gpu_devices
     image_list = args.image_list
     path_to_pb = args.path_to_pb
     fixed_height = args.fixed_height
@@ -262,5 +263,5 @@ if __name__ == '__main__':
 
     post_processor = HeadingNetPostProcessor(image_list, path_to_pb, fixed_height, scaling_factor, weight_dict,
                                              threshold)
-    post_processor.run()
+    post_processor.run(gpu_devices)
 

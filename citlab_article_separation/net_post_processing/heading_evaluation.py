@@ -67,6 +67,7 @@ if __name__ == '__main__':
     stroke_width_weight = args.stroke_width_weight
     text_height_weight = args.text_height_weight
     log_file_folder = args.log_file_folder
+    gpu_devices = args.gpu_devices
 
     # net_weight = 0.33
     # stroke_width_weight = 0.33
@@ -87,7 +88,7 @@ if __name__ == '__main__':
 
     post_processor = HeadingNetPostProcessor(path_to_gt_list, path_to_pb, fixed_height, scaling_factor=None,
                                              weight_dict=weight_dict, threshold=is_heading_threshold)
-    page_objects_hyp = post_processor.run()
+    page_objects_hyp = post_processor.run(gpu_devices)
 
     f1_scores, recall_scores, precision_scores = [], [], []
 
