@@ -1,5 +1,7 @@
 import argparse
+import os
 
+import numpy as np
 from sklearn.metrics import f1_score, recall_score, precision_score
 
 from citlab_article_separation.net_post_processing.heading_net_post_processor import HeadingNetPostProcessor
@@ -35,14 +37,6 @@ def get_heading_text_line_by_custom_type(heading_regions):
     return text_lines
 
 
-def get_true_positives(gt_list, hyp_list):
-    pass
-
-
-def get_false_negatives(gt):
-    pass
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--path_to_gt_list', type=str, required=True,
@@ -61,6 +55,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu_devices', type=str, required=False,
                         help='Which GPU devices to use, comma-separated integers. E.g. "0,1,2".',
                         default='0')
+    parser.add_argument('--log_file_folder', type=str, required=False, help='Where to store the log files.')
 
     args = parser.parse_args()
 
@@ -71,6 +66,7 @@ if __name__ == '__main__':
     net_weight = args.net_weight
     stroke_width_weight = args.stroke_width_weight
     text_height_weight = args.text_height_weight
+    log_file_folder = args.log_file_folder
 
     # net_weight = 0.33
     # stroke_width_weight = 0.33
@@ -93,18 +89,41 @@ if __name__ == '__main__':
                                              weight_dict=weight_dict, threshold=is_heading_threshold)
     page_objects_hyp = post_processor.run()
 
-    for i, image_path in enumerate(image_paths):
-        xml_path = get_page_path(image_path)
-        page_object_gt = Page(xml_path)
-        page_object_hyp = page_objects_hyp[i]
+    f1_scores, recall_scores, precision_scores = [], [], []
 
-        text_regions_gt = page_object_gt.get_text_regions()
-        text_regions_hyp = page_object_hyp.get_text_regions()
+    log_file_name = f"{fixed_height:04}_{is_heading_threshold*100:03.0f}_{net_weight*100:03.0f}_" \
+                    f"{stroke_width_weight*100:03.0f}_{text_height_weight*100:03.0f}.log"
+    log_file_name = os.path.join(log_file_folder, log_file_name)
 
-        is_heading_gt = [tr.region_type == TextRegionTypes.sHEADING for tr in text_regions_gt]
-        is_heading_hyp = [tr.region_type == TextRegionTypes.sHEADING for tr in text_regions_hyp]
+    with open(log_file_name, 'w') as log_file:
+        log_file.write(f"fixed_height: {fixed_height}\n"
+                       f"is_heading_threshold: {is_heading_threshold}\n"
+                       f"net_weight: {net_weight}\n"
+                       f"stroke_width_weight: {stroke_width_weight}\n"
+                       f"text_height_weight: {text_height_weight}\n")
+        for i, image_path in enumerate(image_paths):
+            log_file.write(f"\nImage path: {image_path}\n")
+            xml_path = get_page_path(image_path)
+            page_object_gt = Page(xml_path)
+            page_object_hyp = page_objects_hyp[i]
 
-        recall = recall_score(is_heading_gt, is_heading_hyp, average='macro')
-        precision = precision_score(is_heading_gt, is_heading_hyp, average='macro')
-        f1 = f1_score(is_heading_gt, is_heading_hyp, average='macro')
+            text_regions_gt = page_object_gt.get_text_regions()
+            text_regions_hyp = page_object_hyp.get_text_regions()
 
+            is_heading_gt = [tr.region_type == TextRegionTypes.sHEADING for tr in text_regions_gt]
+            is_heading_hyp = [tr.region_type == TextRegionTypes.sHEADING for tr in text_regions_hyp]
+
+            recall_scores.append(recall_score(is_heading_gt, is_heading_hyp, average='binary'))
+            precision_scores.append(precision_score(is_heading_gt, is_heading_hyp, average='binary'))
+            f1_scores.append(f1_score(is_heading_gt, is_heading_hyp, average='binary'))
+
+            log_file.write(f"\t{'R':>2}: {recall_scores[-1]:.4f}\n")
+            log_file.write(f"\t{'P':>2}: {precision_scores[-1]:.4f}\n")
+            log_file.write(f"\t{'F1':>2}: {f1_scores[-1]:.4f}\n")
+
+        avg_recall = np.mean(recall_scores)
+        avg_precision = np.mean(precision_scores)
+        avg_f1 = np.mean(f1_scores)
+
+        log_file.write("\nAverage Recall \t Average Precision \t Average F1\n")
+        log_file.write(f"{avg_recall:.4f}, {avg_precision:.4f}, {avg_f1:.4f}")
