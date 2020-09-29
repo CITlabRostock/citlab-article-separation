@@ -117,18 +117,18 @@ if __name__ == '__main__':
             is_heading_hyp = [tr.region_type == TextRegionTypes.sHEADING for tr in text_regions_hyp]
 
             # Evaluation only on heading class
-            recall_scores_bin.append(recall_score(is_heading_gt, is_heading_hyp, average='binary'))
+            recall_scores_bin.append(recall_score(is_heading_gt, is_heading_hyp, average='binary', zero_division=0))
             precision_scores_bin.append(precision_score(is_heading_gt, is_heading_hyp, average='binary', zero_division=0))
             f1_scores_bin.append(f1_score(is_heading_gt, is_heading_hyp, average='binary', zero_division=0))
 
             # Evaluation on heading and non-heading class
-            recall_scores_micro.append(recall_score(is_heading_gt, is_heading_hyp, average='micro'))
+            recall_scores_micro.append(recall_score(is_heading_gt, is_heading_hyp, average='micro', zero_division=0))
             precision_scores_micro.append(precision_score(is_heading_gt, is_heading_hyp, average='micro', zero_division=0))
             f1_scores_micro.append(f1_score(is_heading_gt, is_heading_hyp, average='micro', zero_division=0))
 
             # Evaluation on heading and non-heading class
             # (weighted by support of each class, i.e. number of instances per class are taken into account)
-            recall_scores_weighted.append(recall_score(is_heading_gt, is_heading_hyp, average='weighted'))
+            recall_scores_weighted.append(recall_score(is_heading_gt, is_heading_hyp, average='weighted', zero_division=0))
             precision_scores_weighted.append(precision_score(is_heading_gt, is_heading_hyp, average='weighted', zero_division=0))
             f1_scores_weighted.append(f1_score(is_heading_gt, is_heading_hyp, average='weighted', zero_division=0))
 
