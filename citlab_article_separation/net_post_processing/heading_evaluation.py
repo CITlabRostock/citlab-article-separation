@@ -90,11 +90,13 @@ if __name__ == '__main__':
                                              weight_dict=weight_dict, threshold=is_heading_threshold)
     page_objects_hyp = post_processor.run(gpu_devices)
 
-    f1_scores, recall_scores, precision_scores = [], [], []
-
     log_file_name = f"{fixed_height:04}_{is_heading_threshold*100:03.0f}_{net_weight*100:03.0f}_" \
                     f"{stroke_width_weight*100:03.0f}_{text_height_weight*100:03.0f}.log"
     log_file_name = os.path.join(log_file_folder, log_file_name)
+
+    f1_scores_bin, recall_scores_bin, precision_scores_bin = [], [], []
+    f1_scores_micro, recall_scores_micro, precision_scores_micro = [], [], []
+    f1_scores_weighted, recall_scores_weighted, precision_scores_weighted = [], [], []
 
     with open(log_file_name, 'w') as log_file:
         log_file.write(f"fixed_height: {fixed_height}\n"
@@ -114,17 +116,49 @@ if __name__ == '__main__':
             is_heading_gt = [tr.region_type == TextRegionTypes.sHEADING for tr in text_regions_gt]
             is_heading_hyp = [tr.region_type == TextRegionTypes.sHEADING for tr in text_regions_hyp]
 
-            recall_scores.append(recall_score(is_heading_gt, is_heading_hyp, average='binary'))
-            precision_scores.append(precision_score(is_heading_gt, is_heading_hyp, average='binary'))
-            f1_scores.append(f1_score(is_heading_gt, is_heading_hyp, average='binary'))
+            # Evaluation only on heading class
+            recall_scores_bin.append(recall_score(is_heading_gt, is_heading_hyp, average='binary', zero_division=0))
+            precision_scores_bin.append(precision_score(is_heading_gt, is_heading_hyp, average='binary', zero_division=0))
+            f1_scores_bin.append(f1_score(is_heading_gt, is_heading_hyp, average='binary', zero_division=0))
 
-            log_file.write(f"\t{'R':>2}: {recall_scores[-1]:.4f}\n")
-            log_file.write(f"\t{'P':>2}: {precision_scores[-1]:.4f}\n")
-            log_file.write(f"\t{'F1':>2}: {f1_scores[-1]:.4f}\n")
+            # Evaluation on heading and non-heading class
+            recall_scores_micro.append(recall_score(is_heading_gt, is_heading_hyp, average='micro', zero_division=0))
+            precision_scores_micro.append(precision_score(is_heading_gt, is_heading_hyp, average='micro', zero_division=0))
+            f1_scores_micro.append(f1_score(is_heading_gt, is_heading_hyp, average='micro', zero_division=0))
 
-        avg_recall = np.mean(recall_scores)
-        avg_precision = np.mean(precision_scores)
-        avg_f1 = np.mean(f1_scores)
+            # Evaluation on heading and non-heading class
+            # (weighted by support of each class, i.e. number of instances per class are taken into account)
+            recall_scores_weighted.append(recall_score(is_heading_gt, is_heading_hyp, average='weighted', zero_division=0))
+            precision_scores_weighted.append(precision_score(is_heading_gt, is_heading_hyp, average='weighted', zero_division=0))
+            f1_scores_weighted.append(f1_score(is_heading_gt, is_heading_hyp, average='weighted', zero_division=0))
 
-        log_file.write("\nAverage Recall \t Average Precision \t Average F1\n")
-        log_file.write(f"{avg_recall:.4f}, {avg_precision:.4f}, {avg_f1:.4f}")
+            log_file.write(f"\t{'R_BIN':>6}: {recall_scores_bin[-1]:.4f}")
+            log_file.write(f"\t{'R_MIC':>6}: {recall_scores_micro[-1]:.4f}")
+            log_file.write(f"\t{'R_WEI':>6}: {recall_scores_weighted[-1]:.4f}\n")
+
+            log_file.write(f"\t{'P_BIN':>6}: {precision_scores_bin[-1]:.4f}")
+            log_file.write(f"\t{'P_MIC':>6}: {precision_scores_micro[-1]:.4f}")
+            log_file.write(f"\t{'P_WEI':>6}: {precision_scores_weighted[-1]:.4f}\n")
+
+            log_file.write(f"\t{'F1_BIN':>6}: {f1_scores_bin[-1]:.4f}")
+            log_file.write(f"\t{'F1_MIC':>6}: {f1_scores_micro[-1]:.4f}")
+            log_file.write(f"\t{'F1_WEI':>6}: {f1_scores_weighted[-1]:.4f}")
+
+        avg_recall_bin = np.mean(recall_scores_bin)
+        avg_precision_bin = np.mean(precision_scores_bin)
+        avg_f1_bin = np.mean(f1_scores_bin)
+
+        avg_recall_micro = np.mean(recall_scores_micro)
+        avg_precision_micro = np.mean(precision_scores_micro)
+        avg_f1_micro = np.mean(f1_scores_micro)
+
+        avg_recall_weighted = np.mean(recall_scores_weighted)
+        avg_precision_weighted = np.mean(precision_scores_weighted)
+        avg_f1_weighted = np.mean(f1_scores_weighted)
+
+        log_file.write("\n\nAverage Recall (BIN) \t Average Precision (BIN) \t Average F1 (BIN)\n")
+        log_file.write(f"{avg_recall_bin:.4f}, {avg_precision_bin:.4f}, {avg_f1_bin:.4f}\n\n")
+        log_file.write("\nAverage Recall (MIC) \t Average Precision (MIC) \t Average F1 (MIC)\n")
+        log_file.write(f"{avg_recall_micro:.4f}, {avg_precision_micro:.4f}, {avg_f1_micro:.4f}\n\n")
+        log_file.write("\nAverage Recall (WEI) \t Average Precision (WEI) \t Average F1 (WEI)\n")
+        log_file.write(f"{avg_recall_weighted:.4f}, {avg_precision_weighted:.4f}, {avg_f1_weighted:.4f}")
