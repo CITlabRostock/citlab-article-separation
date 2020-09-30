@@ -96,6 +96,7 @@ if __name__ == '__main__':
 
     f1_scores_bin, recall_scores_bin, precision_scores_bin = [], [], []
     f1_scores_micro, recall_scores_micro, precision_scores_micro = [], [], []
+    f1_scores_macro, recall_scores_macro, precision_scores_macro = [], [], []
     f1_scores_weighted, recall_scores_weighted, precision_scores_weighted = [], [], []
 
     with open(log_file_name, 'w') as log_file:
@@ -126,6 +127,11 @@ if __name__ == '__main__':
             precision_scores_micro.append(precision_score(is_heading_gt, is_heading_hyp, average='micro', zero_division=0))
             f1_scores_micro.append(f1_score(is_heading_gt, is_heading_hyp, average='micro', zero_division=0))
 
+            # Evaluation on heading and non-heading class separately (bin-case) and average the values
+            recall_scores_macro.append(recall_score(is_heading_gt, is_heading_hyp, average='macro', zero_division=0))
+            precision_scores_macro.append(precision_score(is_heading_gt, is_heading_hyp, average='macro', zero_division=0))
+            f1_scores_macro.append(f1_score(is_heading_gt, is_heading_hyp, average='macro', zero_division=0))
+
             # Evaluation on heading and non-heading class
             # (weighted by support of each class, i.e. number of instances per class are taken into account)
             recall_scores_weighted.append(recall_score(is_heading_gt, is_heading_hyp, average='weighted', zero_division=0))
@@ -134,14 +140,17 @@ if __name__ == '__main__':
 
             log_file.write(f"\t{'R_BIN':>6}: {recall_scores_bin[-1]:.4f}")
             log_file.write(f"\t{'R_MIC':>6}: {recall_scores_micro[-1]:.4f}")
+            log_file.write(f"\t{'R_MAC':>6}: {recall_scores_macro[-1]:.4f}")
             log_file.write(f"\t{'R_WEI':>6}: {recall_scores_weighted[-1]:.4f}\n")
 
             log_file.write(f"\t{'P_BIN':>6}: {precision_scores_bin[-1]:.4f}")
             log_file.write(f"\t{'P_MIC':>6}: {precision_scores_micro[-1]:.4f}")
+            log_file.write(f"\t{'P_MAC':>6}: {precision_scores_macro[-1]:.4f}")
             log_file.write(f"\t{'P_WEI':>6}: {precision_scores_weighted[-1]:.4f}\n")
 
             log_file.write(f"\t{'F1_BIN':>6}: {f1_scores_bin[-1]:.4f}")
             log_file.write(f"\t{'F1_MIC':>6}: {f1_scores_micro[-1]:.4f}")
+            log_file.write(f"\t{'F1_MAC':>6}: {f1_scores_macro[-1]:.4f}")
             log_file.write(f"\t{'F1_WEI':>6}: {f1_scores_weighted[-1]:.4f}")
 
         avg_recall_bin = np.mean(recall_scores_bin)
@@ -152,6 +161,10 @@ if __name__ == '__main__':
         avg_precision_micro = np.mean(precision_scores_micro)
         avg_f1_micro = np.mean(f1_scores_micro)
 
+        avg_recall_macro = np.mean(recall_scores_macro)
+        avg_precision_macro = np.mean(precision_scores_macro)
+        avg_f1_macro = np.mean(f1_scores_macro)
+
         avg_recall_weighted = np.mean(recall_scores_weighted)
         avg_precision_weighted = np.mean(precision_scores_weighted)
         avg_f1_weighted = np.mean(f1_scores_weighted)
@@ -160,5 +173,7 @@ if __name__ == '__main__':
         log_file.write(f"{avg_recall_bin:.4f}, {avg_precision_bin:.4f}, {avg_f1_bin:.4f}\n\n")
         log_file.write("\nAverage Recall (MIC) \t Average Precision (MIC) \t Average F1 (MIC)\n")
         log_file.write(f"{avg_recall_micro:.4f}, {avg_precision_micro:.4f}, {avg_f1_micro:.4f}\n\n")
+        log_file.write("\nAverage Recall (MAC) \t Average Precision (MAC) \t Average F1 (MAC)\n")
+        log_file.write(f"{avg_recall_macro:.4f}, {avg_precision_macro:.4f}, {avg_f1_macro:.4f}\n\n")
         log_file.write("\nAverage Recall (WEI) \t Average Precision (WEI) \t Average F1 (WEI)\n")
         log_file.write(f"{avg_recall_weighted:.4f}, {avg_precision_weighted:.4f}, {avg_f1_weighted:.4f}")
