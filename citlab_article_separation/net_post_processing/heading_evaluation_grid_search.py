@@ -1,8 +1,8 @@
 import time
 import concurrent.futures
-from multiprocessing import cpu_count
 import os
 import argparse
+
 
 def run_grid_search(fixed_height, threshold, net_weight):
     net_weight_f = net_weight / 10
@@ -10,7 +10,7 @@ def run_grid_search(fixed_height, threshold, net_weight):
         stroke_width_weight_f = stroke_width_weight / 10
         text_height_weight_f = (10 - net_weight - stroke_width_weight) / 10
 
-        os.system("python -u /home/max/devel/src/git/python/citlab-article-separation/citlab_article_separation/net_post_processing/heading_evaluation.py --path_to_gt_list {} --path_to_pb {} --fixed_height {} --threshold {} --net_weight {} --stroke_width_weight {} --text_height_weight {} --gpu_devices '' --log_file_folder {}".format(PATH_TO_GT_LIST, PATH_TO_PB, fixed_height, threshold, net_weight_f, stroke_width_weight_f, text_height_weight_f, LOG_FILE_FOLDER))
+        os.system("python -u ./citlab-article-separation/citlab_article_separation/net_post_processing/heading_evaluation.py --path_to_gt_list {} --path_to_pb {} --fixed_height {} --threshold {} --net_weight {} --stroke_width_weight {} --text_height_weight {} --gpu_devices '' --log_file_folder {}".format(PATH_TO_GT_LIST, PATH_TO_PB, fixed_height, threshold, net_weight_f, stroke_width_weight_f, text_height_weight_f, LOG_FILE_FOLDER))
 
 
 if __name__ == "__main__":
