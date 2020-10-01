@@ -17,7 +17,10 @@ from citlab_python_util.parser.xml.page.plot import plot_pagexml
 
 class RegionNetPostProcessor(ABC):
     def __init__(self, image_list, path_to_pb, fixed_height, scaling_factor, threshold=None, gpu_devices='0'):
-        self.image_list = image_list
+        if type(image_list) == str:
+            self.image_paths = load_image_paths(image_list)
+        else:
+            self.image_paths = image_list
         self.fixed_height = fixed_height
         self.scaling_factor = scaling_factor
         self.threshold = threshold
@@ -33,8 +36,7 @@ class RegionNetPostProcessor(ABC):
         # self.net_output_polygons = []
 
     def run(self):
-        image_paths = load_image_paths(self.image_list)
-        for image_path in image_paths:
+        for image_path in self.image_paths:
             image, image_grey, sc = load_and_scale_image(image_path, self.fixed_height, self.scaling_factor)
             self.images.append(image)
 
