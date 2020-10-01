@@ -12,6 +12,7 @@ def run_grid_search(fixed_height, threshold, net_weight):
 
         os.system("python -u /home/max/devel/src/git/python/citlab-article-separation/citlab_article_separation/net_post_processing/heading_evaluation.py --path_to_gt_list {} --path_to_pb {} --fixed_height {} --threshold {} --net_weight {} --stroke_width_weight {} --text_height_weight {} --gpu_devices '' --log_file_folder {}".format(PATH_TO_GT_LIST, PATH_TO_PB, fixed_height, threshold, net_weight_f, stroke_width_weight_f, text_height_weight_f, LOG_FILE_FOLDER))
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path_to_gt_list", type=str, required=True,
@@ -23,12 +24,15 @@ if __name__ == "__main__":
     parser.add_argument("--log_file_folder", type=str, required=True,
                         help='Path to the folder where the log files are stored',
                         default='/home/max/tests/logs')
+    parser.add_argument("--num_processes", type=int, required=False,
+                        help='Number of parallel processes.', default=8)
+
     cmd_args = parser.parse_args()
     PATH_TO_GT_LIST = cmd_args.path_to_gt_list
     PATH_TO_PB = cmd_args.path_to_pb
     LOG_FILE_FOLDER = cmd_args.log_file_folder
+    num_processes = cmd_args.num_processes
 
-    num_processes = cpu_count() // 2
     with concurrent.futures.ProcessPoolExecutor(num_processes) as executor:
         fixed_heights = range(600, 1300, 100)
         thresholds = range(4, 10, 1)
