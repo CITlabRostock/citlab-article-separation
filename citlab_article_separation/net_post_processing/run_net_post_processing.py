@@ -36,11 +36,15 @@ if __name__ == '__main__':
     scaling_factor = args.scaling_factor
     threshold = args.threshold
 
+    MAX_SUBLIST_SIZE = 50
+
     with ProcessPoolExecutor(num_processes) as executor:
         size_sub_lists = len(image_path_list) // num_processes
         if size_sub_lists == 0:
             size_sub_lists = 1
             num_processes = len(image_path_list)
+        size_sub_lists = min(MAX_SUBLIST_SIZE, size_sub_lists)
+
         image_path_sub_lists = [image_path_list[i: i + size_sub_lists] for i in
                                 range(0, len(image_path_list), size_sub_lists)]
 
@@ -48,4 +52,3 @@ if __name__ == '__main__':
                     in image_path_sub_lists)
 
         [executor.submit(run, *run_arg) for run_arg in run_args]
-
