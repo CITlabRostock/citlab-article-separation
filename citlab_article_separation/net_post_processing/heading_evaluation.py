@@ -83,7 +83,7 @@ if __name__ == '__main__':
     text_height_weight = args.text_height_weight
     net_thresh = args.net_thresh
     stroke_width_thresh = args.stroke_width_thresh
-    text_height_thresh = args.text_height_thesh
+    text_height_thresh = args.text_height_thresh
     sw_th_thresh = args.sw_th_thresh
     text_line_percentage = args.text_line_percentage
     log_file_folder = args.log_file_folder
