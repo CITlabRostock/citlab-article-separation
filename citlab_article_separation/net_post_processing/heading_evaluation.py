@@ -81,6 +81,11 @@ if __name__ == '__main__':
     net_weight = args.net_weight
     stroke_width_weight = args.stroke_width_weight
     text_height_weight = args.text_height_weight
+    net_thresh = args.net_thresh
+    stroke_width_thresh = args.stroke_width_thresh
+    text_height_thresh = args.text_height_thesh
+    sw_th_thresh = args.sw_th_thresh
+    text_line_percentage = args.text_line_percentage
     log_file_folder = args.log_file_folder
     gpu_devices = args.gpu_devices
 
@@ -92,12 +97,11 @@ if __name__ == '__main__':
                    "stroke_width": stroke_width_weight,
                    "text_height": text_height_weight}
 
-    thresh_dict = {"net_thresh": args.net_thresh,
-                   "stroke_width_thresh": args.stroke_width_thresh,
-                   "text_height_thresh": args.text_height_thresh,
-                   "sw_th_thresh": args.sw_th_thresh}
+    thresh_dict = {"net_thresh": net_thresh,
+                   "stroke_width_thresh": stroke_width_thresh,
+                   "text_height_thresh": text_height_thresh,
+                   "sw_th_thresh": sw_th_thresh}
 
-    text_line_percentage = args.text_line_percentage
 
     # path_to_gt_list = "/home/max/data/la/heading_detection/post_process_experiments/image_paths.lst"
     #
@@ -114,7 +118,9 @@ if __name__ == '__main__':
     page_objects_hyp = post_processor.run(gpu_devices)
 
     log_file_name = f"{fixed_height:04}_{is_heading_threshold*100:03.0f}_{net_weight*100:03.0f}_" \
-                    f"{stroke_width_weight*100:03.0f}_{text_height_weight*100:03.0f}.log"
+                    f"{stroke_width_weight*100:03.0f}_{text_height_weight*100:03.0f}_" \
+                    f"{net_thresh*100:03.0f}_{stroke_width_thresh*100:03.0f}_{text_height_thresh*100:03.0f}_" \
+                    f"{text_line_percentage*100:03.0f}.log"
     log_file_name = os.path.join(log_file_folder, log_file_name)
 
     f1_scores_bin, recall_scores_bin, precision_scores_bin = [], [], []
@@ -127,7 +133,12 @@ if __name__ == '__main__':
                        f"is_heading_threshold: {is_heading_threshold}\n"
                        f"net_weight: {net_weight}\n"
                        f"stroke_width_weight: {stroke_width_weight}\n"
-                       f"text_height_weight: {text_height_weight}\n")
+                       f"text_height_weight: {text_height_weight}\n"
+                       f"net_thresh: {net_thresh}\n"
+                       f"stroke_width_thresh: {stroke_width_thresh}\n"
+                       f"text_height_thresh: {text_height_thresh}\n"
+                       f"sw_th_thresh: {sw_th_thresh}\n"
+                       f"text_line_percentage: {text_line_percentage}\n")
         for i, image_path in enumerate(image_paths):
             log_file.write(f"\nImage path: {image_path}\n")
             xml_path = get_page_path(image_path)
