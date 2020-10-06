@@ -55,6 +55,21 @@ if __name__ == '__main__':
     parser.add_argument('--gpu_devices', type=str, required=False,
                         help='Which GPU devices to use, comma-separated integers. E.g. "0,1,2".',
                         default='0')
+    parser.add_argument("--net_thresh", type=float, required=False, help="If the net confidence is greater than or "
+                                                                         "equal to this value the text line is "
+                                                                         "considered a heading.")
+    parser.add_argument("--stroke_width_thresh", type=float, required=False,
+                        help="If the stroke width confidence is greater than or equal to his value the text line is"
+                             "considered a heading.")
+    parser.add_argument("--text_height_thresh", type=float, required=False,
+                        help="If the text height confidence is greater than or equal to this value the text line is"
+                             "considered a heading.")
+    parser.add_argument("--sw_th_thresh", type=float, required=False,
+                        help="If the average of stroke width and text height confidence is greater than or equal to "
+                             "this value the text line is considered a heading.")
+    parser.add_argument("--text_line_percentage", type=float, required=False,
+                        help="Declare a region as heading if text_line_percentage percent text lines are considered as \
+                            headings.")
     parser.add_argument('--log_file_folder', type=str, required=False, help='Where to store the log files.')
 
     args = parser.parse_args()
@@ -77,6 +92,13 @@ if __name__ == '__main__':
                    "stroke_width": stroke_width_weight,
                    "text_height": text_height_weight}
 
+    thresh_dict = {"net_thresh": args.net_thresh,
+                   "stroke_width_thresh": args.stroke_width_thresh,
+                   "text_height_thresh": args.text_height_thresh,
+                   "sw_th_thresh": args.sw_th_thresh}
+
+    text_line_percentage = args.text_line_percentage
+
     # path_to_gt_list = "/home/max/data/la/heading_detection/post_process_experiments/image_paths.lst"
     #
     # path_to_gt_list = '/home/max/data/la/heading_detection/post_process_experiments/dummy_image_paths.lst'
@@ -87,7 +109,8 @@ if __name__ == '__main__':
     image_paths = load_list_file(path_to_gt_list)
 
     post_processor = HeadingNetPostProcessor(path_to_gt_list, path_to_pb, fixed_height, scaling_factor=None,
-                                             weight_dict=weight_dict, threshold=is_heading_threshold)
+                                             weight_dict=weight_dict, threshold=is_heading_threshold,
+                                             thresh_dict=thresh_dict, text_line_percentage=text_line_percentage)
     page_objects_hyp = post_processor.run(gpu_devices)
 
     log_file_name = f"{fixed_height:04}_{is_heading_threshold*100:03.0f}_{net_weight*100:03.0f}_" \
