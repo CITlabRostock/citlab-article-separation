@@ -115,8 +115,8 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
                                                                old_max=text_line_height_max)
             text_line_net_conf = text_line_net_prob_dict[text_line.id]
 
-            if text_line_stroke_width_conf > stroke_width_thresh or text_line_height_conf > text_line_height_thresh or \
-                    (text_line_stroke_width_conf + text_line_height_conf) / 2 > sw_th_thresh or text_line_net_conf > net_thresh:
+            if text_line_stroke_width_conf >= stroke_width_thresh or text_line_height_conf >= text_line_height_thresh or \
+                    (text_line_stroke_width_conf + text_line_height_conf) / 2 >= sw_th_thresh or text_line_net_conf >= net_thresh:
                 is_heading_confidence = 1.0
 
             else:
