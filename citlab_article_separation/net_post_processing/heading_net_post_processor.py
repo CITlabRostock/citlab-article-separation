@@ -250,7 +250,7 @@ if __name__ == '__main__':
     parser.add_argument('--scaling_factor', type=float, required=False,
                         help="If no --fixed_height flag is given, use a predefined scaling factor on the images.",
                         default=1.0)
-    parser.add_argument('--threshold', type=float, required=False,
+    parser.add_argument('--threshold', type=float, required=False, default=0.4,
                         help="Threshold value that decides based on the feature values if a text line is a heading or "
                              "not.")
     parser.add_argument('--net_weight', type=float, required=False, help="Weight the net output feature.")
@@ -282,16 +282,23 @@ if __name__ == '__main__':
     path_to_pb = args.path_to_pb
     fixed_height = args.fixed_height
     scaling_factor = args.scaling_factor
-    weight_dict = {"net": args.net_weight,
-                   "stroke_width": args.stroke_width_weight,
-                   "text_height": args.text_height_weight}
-    thresh_dict = {"net_thresh": args.net_thresh,
-                   "stroke_width_thresh": args.stroke_width_thresh,
-                   "text_height_thresh": args.text_height_thresh,
-                   "sw_th_thresh": args.sw_th_thresh}
+
+    if args.net_weight is None or args.stroke_width_weight is None or args.text_height_weight is None:
+        weight_dict = None
+    else:
+        weight_dict = {"net": args.net_weight,
+                       "stroke_width": args.stroke_width_weight,
+                       "text_height": args.text_height_weight}
+
+    if args.net_thresh is None or args.stroke_width_thresh is None or args.text_height_thresh is None or args.sw_th_thresh is None:
+        thresh_dict = None
+    else:
+        thresh_dict = {"net_thresh": args.net_thresh,
+                       "stroke_width_thresh": args.stroke_width_thresh,
+                       "text_height_thresh": args.text_height_thresh,
+                       "sw_th_thresh": args.sw_th_thresh}
     threshold = args.threshold
     text_line_percentage = args.text_line_percentage
-    # weight_dict = {"net": 0.0, "stroke_width": 0.5, "text_height": 0.5}
 
     post_processor = HeadingNetPostProcessor(image_list, path_to_pb, fixed_height, scaling_factor, weight_dict,
                                              threshold, thresh_dict, text_line_percentage)
