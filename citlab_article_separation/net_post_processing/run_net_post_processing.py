@@ -17,7 +17,7 @@ def run_heading(image_list, path_to_pb, fixed_height=900, scaling_factor=1, is_h
     if thresh_dict is None:
         thresh_dict = {'net_thresh': 1.0, 'stroke_width_thresh': 1.0, 'text_height_thresh': 0.9, 'sw_th_thresh': 0.9}
     if weight_dict is None:
-        weight_dict = {'net_weight': 0.8, 'stroke_width_weight': 0.0, 'text_height_weight': 0.2}
+        weight_dict = {'net': 0.8, 'stroke_width': 0.0, 'text_height': 0.2}
     post_processor = HeadingNetPostProcessor(image_list, path_to_pb, fixed_height, scaling_factor, weight_dict,
                                              is_heading_threshold, thresh_dict, text_line_percentage)
     post_processor.run(gpu_device='')
