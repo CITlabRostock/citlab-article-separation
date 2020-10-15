@@ -76,7 +76,7 @@ if __name__ == '__main__':
 
             [executor.submit(run_separator, *run_arg) for run_arg in run_args]
         elif mode == 'heading':
-            run_args = ((image_path_sub_list, path_to_pb, fixed_height, scaling_factor) for image_path_sub_list in
-                        image_path_sub_lists)
+            run_args = ((image_path_sub_list, path_to_pb, fixed_height, scaling_factor, 0.4, None, None, 0.8)
+                        for image_path_sub_list in image_path_sub_lists)
 
             [executor.submit(run_heading, *run_arg) for run_arg in run_args]
