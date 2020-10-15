@@ -37,7 +37,7 @@ class GroundTruthGenerator(ABC):
         else:
             sc_factor = max(0.1, scaling_factor)
             self.scaling_factors = [sc_factor] * len(self.img_path_lst)
-        self.grey_img_lst, self.img_res_lst = self.create_grey_images()
+        self.images_list, self.img_res_lst = self.create_images()
         self.gt_imgs_lst = []  # list of tuples
         self.gt_polygon_lst = []  # list of tuples representing lists of polygons plotted in gt_imgs_lst
         self.n_channels = 0
@@ -52,11 +52,11 @@ class GroundTruthGenerator(ABC):
     def create_page_objects(self):
         return [Page(page_path) for page_path in self.page_path_lst]
 
-    def create_grey_images(self):
+    def create_images(self, color_mode='L'):
         new_img_res_lst = []
         grey_img_lst = []
         for i, path_to_img in enumerate(self.img_path_lst):
-            grey_img = Image.open(path_to_img).convert('L')
+            grey_img = Image.open(path_to_img).convert(color_mode)
             grey_img = np.array(grey_img, np.uint8)
 
             if self.scaling_factors[i] < 1:
@@ -121,7 +121,7 @@ class GroundTruthGenerator(ABC):
                         gt_folder_name="C" + str(len(gt_imgs)))
                     cv2.imwrite(gt_img_savefile_name, gt_img)
                 cv2.imwrite(self.get_grey_image_savefile_name(self.img_path_lst[self.valid_img_indizes[i]], savedir),
-                            self.grey_img_lst[self.valid_img_indizes[i]])
+                            self.images_list[self.valid_img_indizes[i]])
                 with open(self.get_rotation_savefile_name(self.img_path_lst[self.valid_img_indizes[i]], savedir), "w") as rot:
                     rot.write("0")
 
@@ -155,7 +155,7 @@ class GroundTruthGenerator(ABC):
         return os.path.join(save_dir, img_name_wo_ext + rotation_file_ext)
 
     def run_ground_truth_generation(self, save_dir, create_info_file=True):
-        self.create_grey_images()
+        self.create_images()
         if len(self.page_object_lst) < 1:
             self.create_page_objects()
         self.create_ground_truth_images()
