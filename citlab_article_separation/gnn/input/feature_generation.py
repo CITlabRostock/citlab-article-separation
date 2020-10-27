@@ -8,14 +8,12 @@ from scipy.spatial import Delaunay
 from scipy.spatial.qhull import QhullError
 from shapely.geometry import LineString
 
-from citlab_article_separation.gnn.features.textblock_similarity import TextblockSimilarity
+from citlab_python_util.math.rounding import round_by_precision_and_base as round_base
+from citlab_python_util.io.path_util import get_img_from_page_path
+from citlab_article_separation.gnn.input.textblock_similarity import TextblockSimilarity
 from citlab_python_util.image_processing.swt_dist_trafo import StrokeWidthDistanceTransform
 from citlab_python_util.parser.xml.page.page import Page
 from citlab_python_util.geometry.util import convex_hull, bounding_box
-
-
-def my_round(x, prec=2, base=0.05):
-    return (base * (np.array(x) / base).round()).round(prec)
 
 
 def get_text_region_geometric_features(text_region, norm_x, norm_y):
@@ -181,7 +179,7 @@ def get_textline_stroke_widths_heights_dist_trafo(page_path, text_lines):
 #     return textline_stroke_widths, textline_heights
 
 
-def get_text_region_stroke_width_feature(text_region, textline_stroke_widths, norm=30.0):
+def get_text_region_stroke_width_feature(text_region, textline_stroke_widths, norm=1.0):
     # 0-feature for empty text regions
     if all([not line.text for line in text_region.text_lines]):
         return [0.0]
@@ -189,14 +187,11 @@ def get_text_region_stroke_width_feature(text_region, textline_stroke_widths, no
     # we prefer the maximum, so headings that are clustered in a block with other text dont get averaged out
     else:
         text_region_stroke_widths = [textline_stroke_widths[line.id] for line in text_region.text_lines if line.text]
-        # textids = [line.id for line in text_region.text_lines if line.text]
-        # print(list(zip(textids, text_region_stroke_widths)))
-        # TODO: How to norm swt_values across different pages?
         text_region_stroke_width = np.max(text_region_stroke_widths) / norm
         return [text_region_stroke_width]
 
 
-def get_text_region_text_height_feature(text_region, textline_heights, norm=300.0):
+def get_text_region_text_height_feature(text_region, textline_heights, norm=1.0):
     # 0-feature for empty text regions
     if all([not line.text for line in text_region.text_lines]):
         return [0.0]
@@ -204,7 +199,6 @@ def get_text_region_text_height_feature(text_region, textline_heights, norm=300.
     # we prefer the maximum, so headings that are clustered in a block with other text dont get averaged out
     else:
         text_region_line_heights = [textline_heights[line.id] for line in text_region.text_lines if line.text]
-        # TODO: How to norm text_heights across different pages?
         text_region_text_height = np.max(text_region_line_heights) / norm
         return [text_region_text_height]
 
@@ -326,205 +320,8 @@ def get_page_feature_stats(page_path):
     return max_sw, max_th
 
 
-def build_input_and_target_bc_modular(page_path, num_node_features=4, num_edge_features=0, interaction='fully',
-                                      visual_regions=False):
-    """ Computation of the input and target values to solve the AS problem with a graph neural network on BC level.
-
-    :param page_path: path to page_xml
-    :param num_node_features: number of features to be generated in node_features
-    :param num_edge_features: number of features to be generated in edge_features
-    :param interaction: interacting_nodes setup
-    :param visual_regions: optionally build visual regions for nodes and edges (used for visual feature extraction)
-    :return: 'num_nodes', 'interacting_nodes', 'num_interacting_nodes' ,'node_features', 'edge_features',
-     'gt_relations', 'gt_num_relations'
-    """
-    assert num_node_features in (4, 12, 14, 15, 16), \
-        f"Number of node features {num_node_features} is not supported. Choose from (4, 12, 14, 15, 16) instead."
-    assert num_edge_features in (0, 2), \
-        f"Number of edge features {num_edge_features} is not supported. Choose from (0, 2) instead."
-    assert interaction in ('fully', 'delaunay'), \
-        f"Interaction setup {interaction} is not supported. Choose from ('fully', 'delaunay') instead."
-
-    # load page data
-    regions, text_lines, polygons, article_ids, resolution = get_data_from_pagexml(page_path)
-    text_regions = regions['TextRegion']
-
-    # discard regions
-    discard = 0
-    text_lines_to_remove = []
-    for tr in text_regions:
-        # ... without text lines
-        if not tr.text_lines:
-            text_regions.remove(tr)
-            discard += 1
-        # ... too small
-        bounding_box = tr.points.to_polygon().get_bounding_box()
-        if bounding_box.width < 10 or bounding_box.height < 10:
-            text_regions.remove(tr)
-            for text_line in tr.text_lines:
-                text_lines_to_remove.append(text_line.id)
-            discard += 1
-    # discard corresponding text lines
-    if text_lines_to_remove:
-        text_lines = [line for line in text_lines if line.id not in text_lines_to_remove]
-    if discard > 0:
-        logging.warning(f"Discarded {discard} degenerate text_region(s). Either no text lines or region too small.")
-
-    # number of nodes
-    num_nodes = len(text_regions)
-
-    # node features
-    node_features = []
-    norm_x, norm_y = float(resolution[0]), float(resolution[1])
-
-    # pre-compute stroke width and height over textlines
-    if num_node_features > 14:
-        textline_stroke_widths, textline_heights = get_textline_stroke_widths_heights_dist_trafo(page_path, text_lines)
-
-    # compute region features
-    for text_region in text_regions:
-        node_feature = []
-        # 4-dimensional node_features
-        node_feature.extend(get_text_region_geometric_features(text_region, norm_x, norm_y))
-        # 12-dimensional node_features
-        if num_node_features > 4:
-            node_feature.extend(get_text_region_baseline_features(text_region, norm_x, norm_y))
-            # 14-dimensional node_features
-            if num_node_features > 12:
-                node_feature.extend(get_text_region_punctuation_feature(text_region))
-                # 15-dimensional node_features
-                if num_node_features > 14:
-                    node_feature.extend(get_text_region_stroke_width_feature(text_region, textline_stroke_widths))
-                    # 16-dimensional node_features
-                    if num_node_features > 15:
-                        node_feature.extend(get_text_region_text_height_feature(text_region, textline_heights))
-        node_features.append(node_feature)
-
-    # interacting nodes (currently fully-connected and delaunay triangulation)
-    if interaction == 'fully' or num_nodes < 4:
-        node_indices = np.arange(num_nodes, dtype=np.int32)
-        node_indices = np.tile(node_indices, [num_nodes, 1])
-        node_indices_t = np.transpose(node_indices)
-        # fully-connected
-        interacting_nodes = np.stack([node_indices_t, node_indices], axis=2).reshape([-1, 2])
-        # remove self-loops
-        del_indices = np.arange(num_nodes) * (num_nodes + 1)
-        interacting_nodes = np.delete(interacting_nodes, del_indices, axis=0)
-    elif interaction == 'delaunay':
-        # region centers
-        center_points = np.array(node_features, dtype=np.float32)[:, 2:4] * [norm_x, norm_y]
-        # round to nearest 50px for a more homogenous layout
-        center_points_smooth = my_round(center_points, base=50)
-        # interacting nodes are neighbours in the delaunay triangulation
-        try:
-            delaunay = Delaunay(center_points_smooth)
-        except QhullError:
-            logging.warning("Delaunay input has the same x-coords. Defaulting to unsmoothed data.")
-            delaunay = Delaunay(center_points)
-        indice_pointer, indices = delaunay.vertex_neighbor_vertices
-        interacting_nodes = []
-        for v in range(num_nodes):
-            neighbors = indices[indice_pointer[v]:indice_pointer[v + 1]]
-            interaction = np.stack(np.broadcast_arrays(v, neighbors), axis=1)
-            interacting_nodes.append(interaction)
-        interacting_nodes = np.concatenate(interacting_nodes, axis=0)
-
-    # number of interacting nodes
-    num_interacting_nodes = interacting_nodes.shape[0]
-
-    # edge features for each pair of interacting nodes
-    edge_features = []
-    if num_edge_features > 0:
-        try:
-            separator_regions = regions['SeparatorRegion']
-            for i in range(num_interacting_nodes):
-                edge_feature = []
-                node_a, node_b = interacting_nodes[i, 0], interacting_nodes[i, 1]
-                text_region_a, text_region_b = text_regions[node_a], text_regions[node_b]
-                edge_feature.extend(get_edge_separator_feature(text_region_a, text_region_b, separator_regions))
-                edge_features.append(edge_feature)
-        except KeyError:
-            # no separator regions
-            for i in range(num_interacting_nodes):
-                edge_feature = [0.0, 0.0]
-                edge_features.append(edge_feature)
-
-    # visual regions for nodes (for GNN visual features)
-    visual_regions_nodes = []
-    num_points_visual_regions_nodes = []
-    if visual_regions:
-        for text_region in text_regions:
-            visual_regions_node = get_node_visual_regions(text_region)
-            visual_regions_nodes.append(visual_regions_node)
-            num_points_visual_regions_nodes.append(len(visual_regions_node))
-
-    # visual regions for edges (for GNN visual features)
-    visual_regions_edges = []
-    num_points_visual_regions_edges = []
-    if visual_regions:
-        for i in range(num_interacting_nodes):
-            node_a, node_b = interacting_nodes[i, 0], interacting_nodes[i, 1]
-            text_region_a, text_region_b = text_regions[node_a], text_regions[node_b]
-            visual_regions_edge = get_edge_visual_regions(text_region_a, text_region_b)
-            visual_regions_edges.append(visual_regions_edge)
-            num_points_visual_regions_edges.append(len(visual_regions_edge))
-
-        # build padded array
-        # make faster?
-        # https://stackoverflow.com/questions/53071212/stacking-numpy-arrays-with-padding
-        # https://stackoverflow.com/questions/53051560/stacking-numpy-arrays-of-different-length-using-padding/53052599?noredirect=1#comment93005810_53052599
-        visual_regions_edges_array = np.zeros((num_interacting_nodes, np.max(num_points_visual_regions_edges), 2))
-        for i in range(num_interacting_nodes):
-            visual_region = visual_regions_edges[i]
-            visual_regions_edges_array[i, :len(visual_region), :] = visual_region
-
-    # ground-truth relations
-    gt_relations = []
-    # assign article_id to text_region based on most occuring text_lines
-    # num_tr_uncertain = 0
-    tr_gt_article_ids = []
-    for text_region in text_regions:
-        # get all article_ids for textlines in this region
-        tr_article_ids = []
-        for text_line in text_region.text_lines:
-            tr_article_ids.append(text_line.get_article_id())
-        # count article_id occurences
-        unique_article_ids = list(set(tr_article_ids))
-        article_id_occurences = np.array([tr_article_ids.count(a_id) for a_id in unique_article_ids], dtype=np.int32)
-        # assign article_id by majority vote
-        if article_id_occurences.shape[0] > 1:
-            # num_tr_uncertain += 1
-            assign_index = np.argmax(article_id_occurences)
-            assign_article_id = unique_article_ids[int(assign_index)]
-            tr_gt_article_ids.append(assign_article_id)
-            # print(f"TextRegion {text_region.id}: assign article_id '{assign_article_id}' (from {unique_article_ids})")
-        else:
-            tr_gt_article_ids.append(unique_article_ids[0])
-    # print(f"{num_tr_uncertain}/{len(text_regions)} text regions contained textlines of differing article_ids")
-    # build gt ("1" means 'belong_to_same_article')
-    for i, i_id in enumerate(tr_gt_article_ids):
-        for j, j_id in enumerate(tr_gt_article_ids):
-            if i_id == j_id:
-                gt_relations.append([1, i, j])
-
-    # number of ground-truth relations
-    gt_num_relations = len(gt_relations)
-
-    # TODO: transpose necessary?
-    return np.array(num_nodes, dtype=np.int32), \
-           interacting_nodes.astype(np.int32), \
-           np.array(num_interacting_nodes, dtype=np.int32), \
-           np.array(node_features, dtype=np.float32), \
-           np.array(edge_features, dtype=np.float32) if edge_features else None, \
-           np.transpose(np.array(visual_regions_nodes, dtype=np.float32), axes=(0, 2, 1)) if visual_regions else None, \
-           np.array(num_points_visual_regions_nodes, dtype=np.int32) if visual_regions_nodes else None, \
-           np.transpose(visual_regions_edges_array, axes=(0, 2, 1)) if visual_regions else None, \
-           np.array(num_points_visual_regions_edges, dtype=np.int32) if visual_regions_edges else None, \
-           np.array(gt_relations, dtype=np.int32), \
-           np.array(gt_num_relations, dtype=np.int32)
-
-
-def build_input_and_target_bc(page_path, external_data,
+def build_input_and_target_bc(page_path,
+                              external_data=(),
                               interaction='delaunay',
                               visual_regions=False,
                               sim_feat_extractor=None):
@@ -548,11 +345,12 @@ def build_input_and_target_bc(page_path, external_data,
     # discard regions
     discard = 0
     text_lines_to_remove = []
-    for tr in text_regions:
+    for tr in text_regions.copy():
         # ... without text lines
         if not tr.text_lines:
             text_regions.remove(tr)
             discard += 1
+            continue
         # ... too small
         bounding_box = tr.points.to_polygon().get_bounding_box()
         if bounding_box.width < 10 or bounding_box.height < 10:
@@ -573,8 +371,10 @@ def build_input_and_target_bc(page_path, external_data,
     node_features = []
     norm_x, norm_y = float(resolution[0]), float(resolution[1])
 
-    # pre-compute stroke width and height over textlines
+    # pre-compute stroke width and height over textlines (and their maximum value for normalization)
     textline_stroke_widths, textline_heights = get_textline_stroke_widths_heights_dist_trafo(page_path, text_lines)
+    sw_max = np.max(list(textline_stroke_widths.values()))
+    th_max = np.max(list(textline_heights.values()))
 
     # compute region features
     for text_region in text_regions:
@@ -586,9 +386,9 @@ def build_input_and_target_bc(page_path, external_data,
         # # punctuation feature (2-dim)
         # node_feature.extend(get_text_region_punctuation_feature(text_region))
         # stroke width feature (1-dim)
-        node_feature.extend(get_text_region_stroke_width_feature(text_region, textline_stroke_widths))
+        node_feature.extend(get_text_region_stroke_width_feature(text_region, textline_stroke_widths, norm=sw_max))
         # text height feature (1-dim)
-        node_feature.extend(get_text_region_text_height_feature(text_region, textline_heights))
+        node_feature.extend(get_text_region_text_height_feature(text_region, textline_heights, norm=th_max))
         # heading feature
         node_feature.extend(get_text_region_heading_feature(text_region))
         # external features
@@ -615,7 +415,7 @@ def build_input_and_target_bc(page_path, external_data,
         # region centers
         center_points = np.array(node_features, dtype=np.float32)[:, 2:4] * [norm_x, norm_y]
         # round to nearest 50px for a more homogenous layout
-        center_points_smooth = my_round(center_points, base=50)
+        center_points_smooth = round_base(center_points, base=50)
         # interacting nodes are neighbours in the delaunay triangulation
         try:
             delaunay = Delaunay(center_points_smooth)
@@ -654,12 +454,9 @@ def build_input_and_target_bc(page_path, external_data,
         # text block similarity features based on word vectors
         if tb_sim_dict:
             try:
-                edge_feature.extend(tb_sim_dict[text_region_a.id][text_region_b.id])
+                edge_feature.extend(tb_sim_dict['edge_features'][text_region_a.id][text_region_b.id])
             except KeyError:
-                try:
-                    edge_feature.extend(tb_sim_dict['default'])
-                except KeyError:
-                    edge_feature.extend([0.5])
+                edge_feature.extend(tb_sim_dict['edge_features']['default'])
         # external features
         for ext in external_data:
             if 'edge_features' in ext:
@@ -857,68 +654,6 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
             print(f"Wrote {out}")
             out_counter += 1
     print(f"Wrote {out_counter} files.")
-
-
-def get_img_from_page_path(page_path):
-    # go up the page folder, remove .xml ending and check for img file
-    img_endings = ("tif", "jpg", "png")
-    img_path = re.sub(r'/page/([-\w.]+)\.xml$', r'/\1', page_path)
-    for ending in img_endings:
-        if img_path.endswith(ending):
-            if os.path.isfile(img_path):
-                return img_path
-    # go up the page folder, substitute .xml ending and check for img file
-    img_path = re.sub(r'/page/([-\w.]+)\.xml$', r'/\1.tif', page_path)
-    if not os.path.isfile(img_path):
-        img_path = re.sub(r'tif$', r'png', img_path)
-        if not os.path.isfile(img_path):
-            img_path = re.sub(r'png$', r'jpg', img_path)
-            if not os.path.isfile(img_path):
-                raise IOError(f"No image file (tif, png, jpg) found to given pagexml {page_path}")
-    return img_path
-
-
-def get_img_from_json_path(json_path):
-    # go up the json folder, remove .json ending and check for img file
-    img_endings = ("tif", "jpg", "png")
-    img_path = re.sub(r'/json\w*/([-\w.]+)\.json$', r'/\1', json_path)
-    for ending in img_endings:
-        if img_path.endswith(ending):
-            if os.path.isfile(img_path):
-                return img_path
-    # go up the json folder, substitute .json ending and check for img file
-    img_path = re.sub(r'/json\w*/([-\w.]+)\.json$', r'/\1.tif', json_path)
-    if not os.path.isfile(img_path):
-        img_path = re.sub(r'tif$', r'png', img_path)
-        if not os.path.isfile(img_path):
-            img_path = re.sub(r'png$', r'jpg', img_path)
-            if not os.path.isfile(img_path):
-                raise IOError("No image file (tif, png, jpg) found to given json ", json_path)
-    return img_path
-
-
-def get_page_from_img_path(img_path):
-    # go into page folder, append .xml and check for pageXML file
-    page_path = re.sub(r'/([-\w.]+)$', r'/page/\1.xml', img_path)
-    if os.path.isfile(page_path):
-        return page_path
-    # go into page folder, substitute img ending for .xml and check for pageXML file
-    page_path = re.sub(r'/([-\w.]+)\.\w+$', r'/page/\1.xml', img_path)
-    if not os.path.isfile(page_path):
-        raise IOError("No pagexml file found to given img file ", img_path)
-    return page_path
-
-
-def get_page_from_json_path(json_path):
-    # go into page folder, append .xml and check for pageXML file
-    page_path = re.sub(r'/json\w*/([-\w.]+)$', r'/page/\1.xml', json_path)
-    if os.path.isfile(page_path):
-        return page_path
-    # go into page folder, substitute .json for .xml and check for pageXML file
-    page_path = re.sub(r'/json\w*/([-\w.]+)\.json$', r'/page/\1.xml', json_path)
-    if not os.path.isfile(page_path):
-        raise IOError("No pagexml file found to given json file ", json_path)
-    return page_path
 
 
 if __name__ == '__main__':

@@ -62,10 +62,9 @@ class RegionNetPostProcessor(ABC):
 
             # self.plot_polygons(image, polygons_dict["SeparatorRegion"])
 
-            page_object = self.to_page_xml(get_page_path(image_path), image_path=image_path,
-                                           polygons_dict=polygons_dict)
+            page_object = self.to_page_xml(get_page_path(image_path), image_path=image_path, polygons_dict=polygons_dict)
             # plot_pagexml(page_object, image_path, plot_article=False, plot_legend=False, fill_regions=True,
-            #              use_page_image_resolution=False)
+            #              use_page_image_resolution=True)
             # plt.show()
 
             # self.net_output_polygons.append(polygons)
@@ -78,7 +77,7 @@ class RegionNetPostProcessor(ABC):
         Converts a binary image (the net output) to polygons that can later be saved to the PAGE files.
         :return: dictionary of list of polygons, e.g. "{TextRegion: list of polygons}"
         """
-        return {}
+        pass
 
     def plot_polygons(self, image, polygons):
         fig = plt.figure()
@@ -182,7 +181,11 @@ class RegionNetPostProcessor(ABC):
 
     def rescale_polygons(self, polygons_dict, scaling_factor):
         for region_name, polygon_list in polygons_dict.items():
-            polygons_dict[region_name] = [rescale_points(polygon, scaling_factor) for polygon in polygon_list]
+            new_polygon_list = []
+            for polygon in polygon_list:
+                new_polygon_list.append([rescale_points(poly, scaling_factor) for poly in polygon])
+            # polygons_dict[region_name] = [rescale_points(polygon, scaling_factor) for polygon in polygon_list]
+            polygons_dict[region_name] = new_polygon_list
 
         return polygons_dict
 
