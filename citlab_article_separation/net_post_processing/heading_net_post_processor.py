@@ -1,28 +1,24 @@
 import argparse
 from collections import Counter
 
-from citlab_python_util.logging.custom_logging import setup_custom_logger
+import numpy as np
 
-from citlab_python_util.io.file_loader import get_page_path
-
-from citlab_article_separation.net_post_processing.net_post_processing_helper import load_image_paths, \
-    load_and_scale_image, get_net_output
+from citlab_article_separation.net_post_processing.net_post_processing_helper import load_and_scale_image, \
+    get_net_output
 from citlab_article_separation.net_post_processing.region_net_post_processor_base import RegionNetPostProcessor
 from citlab_article_separation.net_post_processing.region_to_page_writer import RegionToPageWriter
 from citlab_python_util.image_processing.swt_dist_trafo import StrokeWidthDistanceTransform
-
-from citlab_python_util.parser.xml.page.page_objects import TextLine
-
+from citlab_python_util.io.file_loader import get_page_path
+from citlab_python_util.logging.custom_logging import setup_custom_logger
 from citlab_python_util.parser.xml.page.page_constants import TextRegionTypes
-
-import numpy as np
-from citlab_python_util.image_processing.image_stats import get_image_dimensions
+from citlab_python_util.parser.xml.page.page_objects import TextLine
 
 logger = setup_custom_logger("HeadingNetPostProcessor", "info")
 
 
 class HeadingNetPostProcessor(RegionNetPostProcessor):
-    def __init__(self, image_list, path_to_pb, fixed_height, scaling_factor, weight_dict=None, threshold=0.5):
+    def __init__(self, image_list, path_to_pb, fixed_height, scaling_factor, weight_dict=None, threshold=0.5,
+                 thresh_dict=None, text_line_percentage=None):
         """
         :param image_list:
         :param path_to_pb:
@@ -35,6 +31,9 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
         self.weight_dict = weight_dict if weight_dict is not None else {"net": 0.33, "stroke_width": 0.33,
                                                                         "text_height": 0.33}
         self.threshold = threshold
+        self.thresh_dict = thresh_dict if thresh_dict is not None else {"net_thresh": 0.9, "stroke_width_thresh": 0.9,
+                                                                        "text_height_thresh": 0.9, "sw_th_thresh": 0.8}
+        self.text_line_percentage = text_line_percentage if text_line_percentage is not None else 1.0
 
     def scale_to_new_interval(self, data, old_min, old_max, new_min=0, new_max=1):
         if old_max - old_min == 0:
@@ -101,15 +100,29 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
         stroke_width_weight = self.weight_dict["stroke_width"]
         text_line_height_weight = self.weight_dict["text_height"]
 
+        net_thresh = self.thresh_dict["net_thresh"]
+        stroke_width_thresh = self.thresh_dict["stroke_width_thresh"]
+        text_line_height_thresh = self.thresh_dict["text_height_thresh"]
+        sw_th_thresh = self.thresh_dict["sw_th_thresh"]
+
         page_object = region_page_writer.page_object
         for text_line in text_lines:
-            is_heading_confidence = net_weight * text_line_net_prob_dict[text_line.id] \
-                                    + stroke_width_weight * self.scale_to_new_interval(text_line_stroke_width_dict[text_line.id],
-                                                                        old_min=stroke_width_min,
-                                                                        old_max=stroke_width_max) \
-                                    + text_line_height_weight * self.scale_to_new_interval(text_line_height_dict[text_line.id],
-                                                                        old_min=text_line_height_min,
-                                                                        old_max=text_line_height_max)
+            text_line_stroke_width_conf = self.scale_to_new_interval(text_line_stroke_width_dict[text_line.id],
+                                                                     old_min=stroke_width_min,
+                                                                     old_max=stroke_width_max)
+            text_line_height_conf = self.scale_to_new_interval(text_line_height_dict[text_line.id],
+                                                               old_min=text_line_height_min,
+                                                               old_max=text_line_height_max)
+            text_line_net_conf = text_line_net_prob_dict[text_line.id]
+
+            if text_line_stroke_width_conf >= stroke_width_thresh or text_line_height_conf >= text_line_height_thresh or \
+                    (text_line_stroke_width_conf + text_line_height_conf) / 2 >= sw_th_thresh or text_line_net_conf >= net_thresh:
+                is_heading_confidence = 1.0
+
+            else:
+                is_heading_confidence = net_weight * text_line_net_conf \
+                                        + stroke_width_weight * text_line_stroke_width_conf \
+                                        + text_line_height_weight * text_line_height_conf
 
             if is_heading_confidence > self.threshold:
                 text_line_nd = page_object.get_child_by_id(page_object.page_doc, text_line.id)[0]
@@ -128,9 +141,9 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
                     if text_line.custom['structure']['semantic_type'] == TextRegionTypes.sHEADING:
                         num_text_line_headings += 1
 
-            # if num_text_line_headings / len(text_region.text_lines) > 0.8:
+            # if num_text_line_headings > 0:
             # If one text line is a heading the whole region gets classified as a heading
-            if num_text_line_headings > 0:
+            if num_text_line_headings / len(text_region.text_lines) >= self.text_line_percentage:
                 page_nd.set('type', TextRegionTypes.sHEADING)
 
         logger.debug(f"Saving HeadingNetPostProcessor results to page {page_path}")
@@ -198,9 +211,8 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
         return prob_sum / (bounding_box.width * bounding_box.height)
 
     def run(self, gpu_device='0'):
-        image_paths = load_image_paths(self.image_list)
         new_page_objects = []
-        for image_path in image_paths:
+        for image_path in self.image_paths:
             image, image_grey, sc = load_and_scale_image(image_path, self.fixed_height, self.scaling_factor)
             self.images.append(image)
 
@@ -238,7 +250,7 @@ if __name__ == '__main__':
     parser.add_argument('--scaling_factor', type=float, required=False,
                         help="If no --fixed_height flag is given, use a predefined scaling factor on the images.",
                         default=1.0)
-    parser.add_argument('--threshold', type=float, required=False,
+    parser.add_argument('--threshold', type=float, required=False, default=0.4,
                         help="Threshold value that decides based on the feature values if a text line is a heading or "
                              "not.")
     parser.add_argument('--net_weight', type=float, required=False, help="Weight the net output feature.")
@@ -247,6 +259,21 @@ if __name__ == '__main__':
     parser.add_argument('--gpu_devices', type=str, required=False,
                         help='Which GPU devices to use, comma-separated integers. E.g. "0,1,2".',
                         default='0')
+    parser.add_argument("--net_thresh", type=float, required=False, help="If the net confidence is greater than or "
+                                                                         "equal to this value the text line is "
+                                                                         "considered a heading.")
+    parser.add_argument("--stroke_width_thresh", type=float, required=False,
+                        help="If the stroke width confidence is greater than or equal to his value the text line is"
+                             "considered a heading.")
+    parser.add_argument("--text_height_thresh", type=float, required=False,
+                        help="If the text height confidence is greater than or equal to this value the text line is"
+                             "considered a heading.")
+    parser.add_argument("--sw_th_thresh", type=float, required=False,
+                        help="If the average of stroke width and text height confidence is greater than or equal to "
+                             "this value the text line is considered a heading.")
+    parser.add_argument("--text_line_percentage", type=float, required=False,
+                        help="Declare a region as heading if text_line_percentage percent text lines are considered as \
+                        headings.")
 
     args = parser.parse_args()
 
@@ -255,13 +282,24 @@ if __name__ == '__main__':
     path_to_pb = args.path_to_pb
     fixed_height = args.fixed_height
     scaling_factor = args.scaling_factor
-    weight_dict = {"net": args.net_weight,
-                   "stroke_width": args.stroke_width_weight,
-                   "text_height": args.text_height_weight}
+
+    if args.net_weight is None or args.stroke_width_weight is None or args.text_height_weight is None:
+        weight_dict = None
+    else:
+        weight_dict = {"net": args.net_weight,
+                       "stroke_width": args.stroke_width_weight,
+                       "text_height": args.text_height_weight}
+
+    if args.net_thresh is None or args.stroke_width_thresh is None or args.text_height_thresh is None or args.sw_th_thresh is None:
+        thresh_dict = None
+    else:
+        thresh_dict = {"net_thresh": args.net_thresh,
+                       "stroke_width_thresh": args.stroke_width_thresh,
+                       "text_height_thresh": args.text_height_thresh,
+                       "sw_th_thresh": args.sw_th_thresh}
     threshold = args.threshold
-    # weight_dict = {"net": 0.0, "stroke_width": 0.5, "text_height": 0.5}
+    text_line_percentage = args.text_line_percentage
 
     post_processor = HeadingNetPostProcessor(image_list, path_to_pb, fixed_height, scaling_factor, weight_dict,
-                                             threshold)
+                                             threshold, thresh_dict, text_line_percentage)
     post_processor.run(gpu_devices)
-

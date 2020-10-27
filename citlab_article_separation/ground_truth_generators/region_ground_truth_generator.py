@@ -1,9 +1,12 @@
 import argparse
 import logging
+import json
+import os
 
 import cv2
 import numpy as np
 from citlab_python_util.parser.xml.page import page_constants
+from citlab_python_util.io.path_util import prepend_folder_name
 
 from citlab_article_separation.ground_truth_generators.ground_truth_generator_base import GroundTruthGenerator
 
@@ -23,6 +26,84 @@ class RegionGroundTruthGenerator(GroundTruthGenerator):
                                                                 region_type=page_constants.TextRegionTypes.sHEADING)
         self.use_bounding_box = use_bounding_box
         self.use_min_area_rect = use_min_area_rect
+        if args.save_json:
+            self.image_list, self.img_res_lst = super().create_images(color_mode='RGB')
+
+    def run_ground_truth_generation(self, save_dir, create_info_file=True):
+        if args.save_json:
+            self.scaling_factors = [1] * len(self.img_path_lst)
+            if len(self.page_object_lst) < 1:
+                self.create_page_objects()
+            self.create_ground_truth_json(save_dir, self.text_regions_list, enforce_unique_name=False)
+        else:
+            super().run_ground_truth_generation(save_dir, create_info_file)
+
+    def create_ground_truth_json(self, save_folder, regions_list=None, enforce_unique_name=False):
+        """
+        Creates a json file containing the region information for each image in the following format:
+         { 'image_name1.jpg':
+           { 'regions': {
+               '0': {
+                    'x_points': [...],
+                    'y_points': [...],
+                    'class_name': 'textblock'
+                    },
+               ... more regions ...
+               },
+             'height': 1500,
+             'width': 800
+           },
+           'image_name2.jpg':
+           { 'regions': {
+               ...
+               }
+             'height': 1600,
+             'width': 900
+           },
+           ... more images ...
+         }
+        :return:
+        """
+        if regions_list is None:
+            regions_list = self.text_regions_list
+
+        data = {}
+        for i in range(len(self.img_path_lst)):
+            if enforce_unique_name:
+                image_path_new = prepend_folder_name(self.img_path_lst)
+                image_name = os.path.basename(image_path_new)
+            else:
+                print(self.img_path_lst[i])
+                image_name = os.path.basename(self.img_path_lst[i])
+
+            img_height = self.img_res_lst[i][0]
+            img_width = self.img_res_lst[i][1]
+
+            regions = regions_list[i]
+            regions_dict = {}
+            for j, region in enumerate(regions):
+                region_polygon = region.points.to_polygon()
+                x_points = region_polygon.x_points
+                y_points = region_polygon.y_points
+                if x_points[0] != x_points[-1] or y_points[0] != y_points[-1]:
+                    x_points.append(x_points[0])
+                    y_points.append(y_points[0])
+                class_name = "textblock"
+                regions_dict[str(j)] = {'x_points': x_points, 'y_points': y_points, 'class_name': class_name}
+
+            if image_name in data.keys():
+                raise Exception("Key already existent, please try to prepend the folder name to the file name.")
+
+            data[image_name] = {'regions': regions_dict, 'height': img_height, 'width': img_width}
+
+            image_save_path = os.path.join(save_folder, image_name)
+            if os.path.exists(image_save_path):
+                continue
+            os.symlink(src=self.img_path_lst[i], dst=image_save_path)
+
+        json_save_file_name = os.path.join(save_folder, 'regions.json')
+        with open(json_save_file_name, 'w') as json_file:
+            json.dump(data, json_file)
 
     def create_ground_truth_images(self):
         # Textblocks outlines, Textblocks filled, (Images), Separators, Other
@@ -182,6 +263,9 @@ if __name__ == '__main__':
     parser.add_argument('--max_height', type=int, default=0)
     parser.add_argument('--max_width', type=int, default=0)
     parser.add_argument('--scaling_factor', type=float, default=1.0)
+    parser.add_argument('--save_json', default=False, type=bool,
+                        help="If true, a json file for all images in the image list is created and saved into the"
+                             "directory given by 'save_dir'. Also, symlinks to the original image files are created.")
 
     args = parser.parse_args()
 
@@ -190,7 +274,7 @@ if __name__ == '__main__':
         max_resolution=(args.max_height, args.max_width), scaling_factor=args.scaling_factor)
     # print(tb_generator.image_regions_list)
     # print(tb_generator.text_regions_list)
-    # tb_generator.create_grey_images()
+    # tb_generator.create_images()
     # tb_generator.create_page_objects()
     # img_height = tb_generator.img_res_lst[0][0]
     # img_width = tb_generator.img_res_lst[0][1]
