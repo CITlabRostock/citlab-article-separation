@@ -245,8 +245,8 @@ def get_edge_separator_feature(text_region_a, text_region_b, seperator_regions):
         min_x_s, max_x_s = np.min(points_s[:, 0]), np.max(points_s[:, 0])
         min_y_s, max_y_s = np.min(points_s[:, 1]), np.max(points_s[:, 1])
         # height-width-ratio of bounding box
-        width = max_x_s - min_x_s
-        height = max_y_s - min_y_s
+        width = max(max_x_s - min_x_s, 1)
+        height = max(max_y_s - min_y_s, 1)
         ratio = float(height) / float(width)
         # corner points of bounding box
         s1 = (min_x_s, min_y_s)
