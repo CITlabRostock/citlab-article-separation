@@ -647,7 +647,7 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
             print(f"Created output directory {out_path}")
 
         # Dump jsons
-        file_name = file_name[:-4] + ".json"
+        file_name = os.path.splitext(file_name)[0] + ".json"
         out = os.path.join(out_path, file_name)
         with open(out, "w") as out_file:
             json.dump(out_dict, out_file)
