@@ -320,6 +320,39 @@ def get_page_feature_stats(page_path):
     return max_sw, max_th
 
 
+def fully_connected_edges(num_nodes):
+    node_indices = np.arange(num_nodes, dtype=np.int32)
+    node_indices = np.tile(node_indices, [num_nodes, 1])
+    node_indices_t = np.transpose(node_indices)
+    # fully-connected
+    interacting_nodes = np.stack([node_indices_t, node_indices], axis=2).reshape([-1, 2])
+    # remove self-loops
+    del_indices = np.arange(num_nodes) * (num_nodes + 1)
+    interacting_nodes = np.delete(interacting_nodes, del_indices, axis=0)
+    return interacting_nodes
+
+
+def delaunay_edges(num_nodes, node_features, norm_x, norm_y):
+    # region centers
+    center_points = np.array(node_features, dtype=np.float32)[:, 2:4] * [norm_x, norm_y]
+    # round to nearest 50px for a more homogenous layout
+    center_points_smooth = round_base(center_points, base=50)
+    # interacting nodes are neighbours in the delaunay triangulation
+    try:
+        delaunay = Delaunay(center_points_smooth)
+    except QhullError:
+        logging.warning("Delaunay input has the same x-coords. Defaulting to unsmoothed data.")
+        delaunay = Delaunay(center_points)
+    indice_pointer, indices = delaunay.vertex_neighbor_vertices
+    interacting_nodes = []
+    for v in range(num_nodes):
+        neighbors = indices[indice_pointer[v]:indice_pointer[v + 1]]
+        interaction = np.stack(np.broadcast_arrays(v, neighbors), axis=1)
+        interacting_nodes.append(interaction)
+    interacting_nodes = np.concatenate(interacting_nodes, axis=0)
+    return interacting_nodes
+
+
 def build_input_and_target_bc(page_path,
                               external_data=(),
                               interaction='delaunay',
@@ -353,7 +386,7 @@ def build_input_and_target_bc(page_path,
             continue
         # ... too small
         bounding_box = tr.points.to_polygon().get_bounding_box()
-        if bounding_box.width < 10 or bounding_box.height < 10:
+        if bounding_box.width < 5 or bounding_box.height < 5:
             text_regions.remove(tr)
             for text_line in tr.text_lines:
                 text_lines_to_remove.append(text_line.id)
@@ -363,6 +396,9 @@ def build_input_and_target_bc(page_path,
         text_lines = [line for line in text_lines if line.id not in text_lines_to_remove]
     if discard > 0:
         logging.warning(f"Discarded {discard} degenerate text_region(s). Either no text lines or region too small.")
+
+    if len(text_regions) == 0 or len(text_lines) == 0:
+        return None, None, None, None, None, None, None, None, None, None, None
 
     # number of nodes
     num_nodes = len(text_regions)
@@ -403,32 +439,9 @@ def build_input_and_target_bc(page_path,
 
     # interacting nodes (currently fully-connected and delaunay triangulation)
     if interaction == 'fully' or num_nodes < 4:
-        node_indices = np.arange(num_nodes, dtype=np.int32)
-        node_indices = np.tile(node_indices, [num_nodes, 1])
-        node_indices_t = np.transpose(node_indices)
-        # fully-connected
-        interacting_nodes = np.stack([node_indices_t, node_indices], axis=2).reshape([-1, 2])
-        # remove self-loops
-        del_indices = np.arange(num_nodes) * (num_nodes + 1)
-        interacting_nodes = np.delete(interacting_nodes, del_indices, axis=0)
+        interacting_nodes = fully_connected_edges(num_nodes)
     elif interaction == 'delaunay':
-        # region centers
-        center_points = np.array(node_features, dtype=np.float32)[:, 2:4] * [norm_x, norm_y]
-        # round to nearest 50px for a more homogenous layout
-        center_points_smooth = round_base(center_points, base=50)
-        # interacting nodes are neighbours in the delaunay triangulation
-        try:
-            delaunay = Delaunay(center_points_smooth)
-        except QhullError:
-            logging.warning("Delaunay input has the same x-coords. Defaulting to unsmoothed data.")
-            delaunay = Delaunay(center_points)
-        indice_pointer, indices = delaunay.vertex_neighbor_vertices
-        interacting_nodes = []
-        for v in range(num_nodes):
-            neighbors = indices[indice_pointer[v]:indice_pointer[v + 1]]
-            interaction = np.stack(np.broadcast_arrays(v, neighbors), axis=1)
-            interacting_nodes.append(interaction)
-        interacting_nodes = np.concatenate(interacting_nodes, axis=0)
+        interacting_nodes = delaunay_edges(num_nodes, node_features, norm_x, norm_y)
 
     # number of interacting nodes
     num_interacting_nodes = interacting_nodes.shape[0]
@@ -621,19 +634,20 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
 
         # build and write output
         out_dict = dict()
-        out_dict["num_nodes"] = num_nodes.tolist()
-        out_dict['interacting_nodes'] = interacting_nodes.tolist()
-        out_dict['num_interacting_nodes'] = num_interacting_nodes.tolist()
-        out_dict['node_features'] = node_features.tolist()
-        out_dict['edge_features'] = edge_features.tolist()
-        if visual_regions_nodes is not None and num_points_visual_regions_nodes is not None:
-            out_dict['visual_regions_nodes'] = visual_regions_nodes.tolist()
-            out_dict['num_points_visual_regions_nodes'] = num_points_visual_regions_nodes.tolist()
-        if visual_regions_edges is not None and num_points_visual_regions_edges is not None:
-            out_dict['visual_regions_edges'] = visual_regions_edges.tolist()
-            out_dict['num_points_visual_regions_edges'] = num_points_visual_regions_edges.tolist()
-        out_dict['gt_relations'] = gt_relations.tolist()
-        out_dict['gt_num_relations'] = gt_num_relations.tolist()
+        if num_nodes is not None:
+            out_dict["num_nodes"] = num_nodes.tolist()
+            out_dict['interacting_nodes'] = interacting_nodes.tolist()
+            out_dict['num_interacting_nodes'] = num_interacting_nodes.tolist()
+            out_dict['node_features'] = node_features.tolist()
+            out_dict['edge_features'] = edge_features.tolist()
+            if visual_regions_nodes is not None and num_points_visual_regions_nodes is not None:
+                out_dict['visual_regions_nodes'] = visual_regions_nodes.tolist()
+                out_dict['num_points_visual_regions_nodes'] = num_points_visual_regions_nodes.tolist()
+            if visual_regions_edges is not None and num_points_visual_regions_edges is not None:
+                out_dict['visual_regions_edges'] = visual_regions_edges.tolist()
+                out_dict['num_points_visual_regions_edges'] = num_points_visual_regions_edges.tolist()
+            out_dict['gt_relations'] = gt_relations.tolist()
+            out_dict['gt_num_relations'] = gt_num_relations.tolist()
 
         # Default output is a json folder one level above the pagexml file, indicating features and interaction
         if create_default_dir:
