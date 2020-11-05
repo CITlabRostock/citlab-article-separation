@@ -539,15 +539,13 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
     cluster_page = Page(cluster_path)
 
     # Create figure
-    fig, axes = plt.subplots(1, 3, figsize=(16, 9))
+    fig, axes = plt.subplots(1, 2, figsize=(16, 9))
     fig.canvas.set_window_title(img_path)
-    axes[0].set_title('ground_truth articles')
-    axes[1].set_title(f'graph_confidences_threshold{threshold}')
-    axes[2].set_title(f'cluster_{info}')
+    axes[0].set_title(f'GT_with_graph_conf_threshold{threshold}')
+    axes[1].set_title(f'cluster_{info}')
 
-    # Plot GT page and Cluster page
-    plot_util.plot_pagexml(original_page, img_path, ax=axes[0], plot_article=True, plot_legend=False)
-    plot_util.plot_pagexml(cluster_page, img_path, ax=axes[2], plot_article=True, plot_legend=False)
+    # Plot Cluster page
+    plot_util.plot_pagexml(cluster_page, img_path, ax=axes[1], plot_article=True, plot_legend=False)
     for ax in axes:
         ax.tick_params(axis='both', which='both', bottom=False, left=False, labelbottom=False, labelleft=False)
 
@@ -574,37 +572,34 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
 
     # Draw nodes
     graph_views = dict()
-    node_collection = nx.draw_networkx_nodes(graph, positions, ax=axes[1], node_color=node_colors, node_size=50, **kwds)
+    node_collection = nx.draw_networkx_nodes(graph, positions, ax=axes[0], node_color=node_colors, node_size=50, **kwds)
     node_collection.set_zorder(3)
     graph_views['nodes'] = [node_collection]
     # Draw edges
     if with_edges:
-        edge_collection = nx.draw_networkx_edges(graph, positions, ax=axes[1], width=0.5, arrows=False, **kwds)
+        edge_collection = nx.draw_networkx_edges(graph, positions, ax=axes[0], width=0.5, arrows=False, **kwds)
         if edge_collection is not None:
             edge_collection.set_zorder(2)
             graph_views['edges'] = [edge_collection]
         # optional colorbar
         if 'edge_cmap' in kwds and 'edge_color' in kwds:
             # add colorbar to confidence graph
-            divider = make_axes_locatable(axes[1])
+            divider = make_axes_locatable(axes[0])
             cax = divider.append_axes("right", size="5%", pad=0.05)
             # norm = Normalize(vmin=min(kwds['edge_color']), vmax=max(kwds['edge_color']))
             norm = Normalize(vmin=threshold, vmax=1.0)
             fig.colorbar(ScalarMappable(norm=norm, cmap=kwds['edge_cmap']), cax=cax, format="%.2f")
             # hacky way to get same size adjustment on other two images
-            divider = make_axes_locatable(axes[0])
-            cax = divider.append_axes("right", size="5%", pad=0.05)
-            cax.axis("off")
-            divider = make_axes_locatable(axes[2])
+            divider = make_axes_locatable(axes[1])
             cax = divider.append_axes("left", size="5%", pad=0.05)
             cax.axis("off")
     # Draw labels
     if with_labels:
-        label_collection = nx.draw_networkx_labels(graph, positions, ax=axes[1], font_size=5, **kwds)
+        label_collection = nx.draw_networkx_labels(graph, positions, ax=axes[0], font_size=5, **kwds)
         graph_views['labels'] = [label_collection]
     plt.connect('key_press_event', lambda event: toggle_graph_view(event, graph_views))
     # Draw page underneath
-    plot_util.plot_pagexml(original_page, img_path, ax=axes[1], plot_article=True, plot_legend=False)
+    plot_util.plot_pagexml(original_page, img_path, ax=axes[0], plot_article=True, plot_legend=False)
 
     # Save image
     save_name = re.sub(r'\.xml$', f'_clustering_debug.jpg', os.path.basename(page_path))

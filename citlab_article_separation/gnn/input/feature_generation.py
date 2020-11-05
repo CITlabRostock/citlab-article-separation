@@ -397,11 +397,10 @@ def build_input_and_target_bc(page_path,
     if discard > 0:
         logging.warning(f"Discarded {discard} degenerate text_region(s). Either no text lines or region too small.")
 
-    if len(text_regions) == 0 or len(text_lines) == 0:
-        return None, None, None, None, None, None, None, None, None, None, None
-
     # number of nodes
     num_nodes = len(text_regions)
+    if num_nodes <= 1:
+        return None, None, None, None, None, None, None, None, None, None, None
 
     # node features
     node_features = []
@@ -425,7 +424,7 @@ def build_input_and_target_bc(page_path,
         node_feature.extend(get_text_region_stroke_width_feature(text_region, textline_stroke_widths, norm=sw_max))
         # text height feature (1-dim)
         node_feature.extend(get_text_region_text_height_feature(text_region, textline_heights, norm=th_max))
-        # heading feature
+        # heading feature (1-dim)
         node_feature.extend(get_text_region_heading_feature(text_region))
         # external features
         for ext in external_data:
@@ -551,9 +550,9 @@ def build_input_and_target_bc(page_path,
            np.array(node_features, dtype=np.float32), \
            np.array(edge_features, dtype=np.float32) if edge_features else None, \
            np.transpose(np.array(visual_regions_nodes, dtype=np.float32), axes=(0, 2, 1)) if visual_regions else None, \
-           np.array(num_points_visual_regions_nodes, dtype=np.int32) if visual_regions_nodes else None, \
+           np.array(num_points_visual_regions_nodes, dtype=np.int32) if visual_regions else None, \
            np.transpose(visual_regions_edges_array, axes=(0, 2, 1)) if visual_regions else None, \
-           np.array(num_points_visual_regions_edges, dtype=np.int32) if visual_regions_edges else None, \
+           np.array(num_points_visual_regions_edges, dtype=np.int32) if visual_regions else None, \
            np.array(gt_relations, dtype=np.int32), \
            np.array(gt_num_relations, dtype=np.int32)
 
