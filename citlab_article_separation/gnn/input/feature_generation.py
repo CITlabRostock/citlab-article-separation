@@ -632,8 +632,8 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
                                       sim_feat_extractor=sim_feat_extractor)
 
         # build and write output
-        out_dict = dict()
         if num_nodes is not None:
+            out_dict = dict()
             out_dict["num_nodes"] = num_nodes.tolist()
             out_dict['interacting_nodes'] = interacting_nodes.tolist()
             out_dict['num_interacting_nodes'] = num_interacting_nodes.tolist()
@@ -648,25 +648,25 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
             out_dict['gt_relations'] = gt_relations.tolist()
             out_dict['gt_num_relations'] = gt_num_relations.tolist()
 
-        # Default output is a json folder one level above the pagexml file, indicating features and interaction
-        if create_default_dir:
-            visual = 'v' if visual_regions else ''
-            out_path = re.sub(r'page$',
-                              f'json{node_features.shape[1]}{interaction[0]}{edge_features.shape[1]}{visual}',
-                              os.path.dirname(page_path))
-        # Create output directory
-        if not os.path.isdir(out_path):
-            os.makedirs(out_path)
-            print(f"Created output directory {out_path}")
+            # Default output is a json folder one level above the pagexml file, indicating features and interaction
+            if create_default_dir:
+                visual = 'v' if visual_regions else ''
+                out_path = re.sub(r'page$',
+                                  f'json{node_features.shape[1]}{interaction[0]}{edge_features.shape[1]}{visual}',
+                                  os.path.dirname(page_path))
+            # Create output directory
+            if not os.path.isdir(out_path):
+                os.makedirs(out_path)
+                print(f"Created output directory {out_path}")
 
-        # Dump jsons
-        file_name = os.path.splitext(file_name)[0] + ".json"
-        out = os.path.join(out_path, file_name)
-        with open(out, "w") as out_file:
-            json.dump(out_dict, out_file)
-            print(f"Wrote {out}")
-            out_counter += 1
-    print(f"Wrote {out_counter} files.")
+            # Dump jsons
+            file_name = os.path.splitext(file_name)[0] + ".json"
+            out = os.path.join(out_path, file_name)
+            with open(out, "w") as out_file:
+                json.dump(out_dict, out_file)
+                print(f"Wrote {out}")
+                out_counter += 1
+    print(f"Wrote {out_counter}/{len(page_paths)} files.")
 
 
 if __name__ == '__main__':
