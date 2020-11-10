@@ -428,7 +428,12 @@ def build_input_and_target_bc(page_path,
         node_feature.extend(get_text_region_heading_feature(text_region))
         # external features
         for ext in external_data:
-            if 'node_features' in ext:
+            try:
+                ext_page = ext[os.path.basename(page_path)]
+            except KeyError:
+                logging.warning(f'Could not find key {page_path} in external data json.')
+                continue
+            if 'node_features' in ext_page:
                 try:
                     node_feature.extend(ext['node_features'][text_region.id])
                 except KeyError:
@@ -471,7 +476,12 @@ def build_input_and_target_bc(page_path,
                 edge_feature.extend(tb_sim_dict['edge_features']['default'])
         # external features
         for ext in external_data:
-            if 'edge_features' in ext:
+            try:
+                ext_page = ext[os.path.basename(page_path)]
+            except KeyError:
+                logging.warning(f'Could not find key {page_path} in external data json.')
+                continue
+            if 'edge_features' in ext_page:
                 try:
                     edge_feature.extend(ext['edge_features'][text_region_a.id][text_region_b.id])
                 except (KeyError, TypeError):
@@ -614,19 +624,13 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
     create_default_dir = False if out_path else True
     out_counter = 0
     for page_path in page_paths:
-        file_name = os.path.basename(page_path)
-        external_data = []
-        # external data should be indexed by page names
-        for d in json_data:
-            external_data.append(d[file_name])
-
         # build input & target
         num_nodes, interacting_nodes, num_interacting_nodes, node_features, edge_features, \
         visual_regions_nodes, num_points_visual_regions_nodes, \
         visual_regions_edges, num_points_visual_regions_edges, \
         gt_relations, gt_num_relations = \
             build_input_and_target_bc(page_path=page_path,
-                                      external_data=external_data,
+                                      external_data=json_data,
                                       interaction=interaction,
                                       visual_regions=visual_regions,
                                       sim_feat_extractor=sim_feat_extractor)
