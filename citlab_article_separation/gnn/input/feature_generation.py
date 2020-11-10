@@ -373,7 +373,11 @@ def build_input_and_target_bc(page_path,
 
     # load page data
     regions, text_lines, polygons, article_ids, resolution = get_data_from_pagexml(page_path)
-    text_regions = regions['TextRegion']
+    try:
+        text_regions = regions['TextRegion']
+    except KeyError:
+        logging.warning(f'No TextRegions found in {page_path}. Returning None.')
+        return None, None, None, None, None, None, None, None, None, None, None
 
     # discard regions
     discard = 0
@@ -400,6 +404,7 @@ def build_input_and_target_bc(page_path,
     # number of nodes
     num_nodes = len(text_regions)
     if num_nodes <= 1:
+        logging.warning(f'Less than two nodes found in {page_path}. Returning None.')
         return None, None, None, None, None, None, None, None, None, None, None
 
     # node features
@@ -664,7 +669,7 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
                 print(f"Created output directory {out_path}")
 
             # Dump jsons
-            file_name = os.path.splitext(file_name)[0] + ".json"
+            file_name = os.path.splitext(os.path.basename(page_path))[0] + ".json"
             out = os.path.join(out_path, file_name)
             with open(out, "w") as out_file:
                 json.dump(out_dict, out_file)
