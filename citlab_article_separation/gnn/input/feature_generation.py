@@ -428,7 +428,12 @@ def build_input_and_target_bc(page_path,
         node_feature.extend(get_text_region_heading_feature(text_region))
         # external features
         for ext in external_data:
-            if 'node_features' in ext:
+            try:
+                ext_page = ext[page_path]
+            except KeyError:
+                logging.warning(f'Could not find key {page_path} in external data json.')
+                continue
+            if 'node_features' in ext_page:
                 try:
                     node_feature.extend(ext['node_features'][text_region.id])
                 except KeyError:
@@ -471,7 +476,12 @@ def build_input_and_target_bc(page_path,
                 edge_feature.extend(tb_sim_dict['edge_features']['default'])
         # external features
         for ext in external_data:
-            if 'edge_features' in ext:
+            try:
+                ext_page = ext[page_path]
+            except KeyError:
+                logging.warning(f'Could not find key {page_path} in external data json.')
+                continue
+            if 'edge_features' in ext_page:
                 try:
                     edge_feature.extend(ext['edge_features'][text_region_a.id][text_region_b.id])
                 except (KeyError, TypeError):
