@@ -429,7 +429,7 @@ def create_undirected_graph(digraph, symmetry_fn=gmean, reciprocal=False):
 def build_confidence_graph_dict(graph, page_path):
     page = Page(page_path)
     text_regions = page.get_regions()['TextRegion']
-    text_regions = discard_regions(text_regions)
+    text_regions, _ = discard_regions(text_regions)
     assert graph.number_of_nodes() == len(text_regions), \
         f"Number of nodes in graph ({graph.number_of_nodes()}) does not match number of text regions " \
         f"({len(text_regions)}) in {page_path}."
@@ -450,7 +450,7 @@ def build_confidence_graph_dict(graph, page_path):
 def save_conf_to_json(confidences, page_path, save_dir, symmetry_fn=gmean):
     page = Page(page_path)
     text_regions = page.get_regions()['TextRegion']
-    text_regions = discard_regions(text_regions)
+    text_regions, _ = discard_regions(text_regions)
     assert len(confidences) == len(text_regions), f"Number of nodes in confidences ({len(confidences)}) does not " \
                                                   f"match number of text regions ({len(text_regions)}) in {page_path}."
 
@@ -484,7 +484,7 @@ def save_conf_to_json(confidences, page_path, save_dir, symmetry_fn=gmean):
 def save_clustering_to_page(clustering, page_path, save_dir, info=""):
     page = Page(page_path)
     text_regions = page.get_regions()['TextRegion']
-    text_regions = discard_regions(text_regions)
+    text_regions, _ = discard_regions(text_regions)
     assert len(clustering) == len(text_regions), f"Number of nodes in clustering ({len(clustering)}) does not " \
                                                  f"match number of text regions ({len(text_regions)}) in {page_path}."
 
