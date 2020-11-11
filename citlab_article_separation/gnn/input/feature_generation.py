@@ -353,6 +353,35 @@ def delaunay_edges(num_nodes, node_features, norm_x, norm_y):
     return interacting_nodes
 
 
+def discard_text_regions_and_lines(text_regions, text_lines=None):
+    # discard regions
+    discard = 0
+    text_lines_to_remove = []
+    for tr in text_regions.copy():
+        # ... without text lines
+        if not tr.text_lines:
+            text_regions.remove(tr)
+            logging.debug(f"Discarding TextRegion {tr.id} (no textlines)")
+            discard += 1
+            continue
+        # ... too small
+        bounding_box = tr.points.to_polygon().get_bounding_box()
+        if bounding_box.width < 5 or bounding_box.height < 5:
+            text_regions.remove(tr)
+            logging.debug(f"Discarding TextRegion {tr.id} (bounding box too small, height={bounding_box.height}, "
+                          f"width={bounding_box.width})")
+            if text_lines:
+                for text_line in tr.text_lines:
+                    text_lines_to_remove.append(text_line.id)
+            discard += 1
+    # discard corresponding text lines
+    if text_lines_to_remove:
+        text_lines = [line for line in text_lines if line.id not in text_lines_to_remove]
+    if discard > 0:
+        logging.warning(f"Discarded {discard} degenerate text_region(s). Either no text lines or region too small.")
+    return text_regions, text_lines
+
+
 def build_input_and_target_bc(page_path,
                               external_data=(),
                               interaction='delaunay',
@@ -379,27 +408,8 @@ def build_input_and_target_bc(page_path,
         logging.warning(f'No TextRegions found in {page_path}. Returning None.')
         return None, None, None, None, None, None, None, None, None, None, None
 
-    # discard regions
-    discard = 0
-    text_lines_to_remove = []
-    for tr in text_regions.copy():
-        # ... without text lines
-        if not tr.text_lines:
-            text_regions.remove(tr)
-            discard += 1
-            continue
-        # ... too small
-        bounding_box = tr.points.to_polygon().get_bounding_box()
-        if bounding_box.width < 5 or bounding_box.height < 5:
-            text_regions.remove(tr)
-            for text_line in tr.text_lines:
-                text_lines_to_remove.append(text_line.id)
-            discard += 1
-    # discard corresponding text lines
-    if text_lines_to_remove:
-        text_lines = [line for line in text_lines if line.id not in text_lines_to_remove]
-    if discard > 0:
-        logging.warning(f"Discarded {discard} degenerate text_region(s). Either no text lines or region too small.")
+    # discard TextRegions and corresponding TextLines if necessary
+    text_regions, text_lines = discard_text_regions_and_lines(text_regions, text_lines)
 
     # number of nodes
     num_nodes = len(text_regions)

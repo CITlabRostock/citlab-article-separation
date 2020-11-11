@@ -24,6 +24,7 @@ import citlab_python_util.parser.xml.page.plot as plot_util
 
 from citlab_article_separation.gnn.input.input_dataset import InputGNN
 from citlab_article_separation.gnn.clustering.textblock_clustering import TextblockClustering
+from citlab_article_separation.gnn.input.feature_generation import discard_text_regions_and_lines as discard_regions
 
 
 # General
@@ -423,33 +424,6 @@ def create_undirected_graph(digraph, symmetry_fn=gmean, reciprocal=False):
             elif not reciprocal:
                 G.add_edge(u, v, **u_v_data)
     return G
-
-
-def discard_regions(text_regions):
-    discard = 0
-    for tr in text_regions:
-        # ... without text lines
-        if not tr.text_lines:
-            text_regions.remove(tr)
-            logging.debug(f"Discarding TextRegion {tr.id} (no textlines)")
-            discard += 1
-        # ... too small
-        bounding_box = tr.points.to_polygon().get_bounding_box()
-        if bounding_box.width < 10 or bounding_box.height < 10:
-            text_regions.remove(tr)
-            logging.debug(f"Discarding TextRegion {tr.id} (bounding box too small, height={bounding_box.height}, width={bounding_box.width})")
-            logging.debug(f"TextRegion {tr.id} has {len(tr.text_lines)} assigned TextLine(s)")
-            for tl in tr.text_lines:
-                logging.debug(f" TextLine {tl.id}:")
-                logging.debug(f"  Baseline: height = {tl.baseline.to_polygon().get_bounding_box().height}, "
-                              f"width = {tl.baseline.to_polygon().get_bounding_box().width}")
-                logging.debug(f"  SurrPoly: height = {tl.surr_p.to_polygon().get_bounding_box().height}, "
-                              f"width = {tl.surr_p.to_polygon().get_bounding_box().width}")
-                logging.debug(f"  Text: \"{tl.text}\"")
-            discard += 1
-    if discard > 0:
-        logging.warning(f"Discarded {discard} degenerate text_region(s). Either no text lines or region too small.")
-    return text_regions
 
 
 def build_confidence_graph_dict(graph, page_path):
