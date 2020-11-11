@@ -1,6 +1,8 @@
 import logging
 import time
 import functools
+import os
+import json
 import numpy as np
 import networkx as nx
 import tensorflow as tf
@@ -54,12 +56,14 @@ flags.define_choices('interaction_from_pagexml', ['fully', 'delaunay'], 'fully',
                      'determines the setup of the interacting_nodes when loading from pagexml.')
 flags.define_dict('input_params', {}, "dict of key=value pairs defining the input configuration")
 
-# Clustering
-# ==========
+# Confidences & Clustering
+# ========================
 flags.define_choices('clustering_method', ['dbscan', 'linkage', 'greedy', 'dbscan_std'], 'dbscan', str,
                      "('dbscan', 'linkage', 'greedy', 'dbscan_std')", 'clustering method to be used')
 flags.define_dict('clustering_params', {}, "dict of key=value pairs defining the clustering configuration")
-flags.define_string("cluster_dir", "cluster_output", "directory to save graph clustering pageXMLs")
+flags.define_string("out_dir", "", "directory to save graph confidences jsons and clustering pageXMLs. It retains the "
+                                   "folder structure of the input data. Use an empty 'out_dir' for the original folder")
+flags.define_boolean("only_save_conf", False, "Only save the graph confidences and skip the clustering process")
 
 # Misc
 # ====
@@ -265,13 +269,22 @@ class EvaluateRelation(object):
 
                     # clustering of confidence graph
                     confidences = np.reshape(class_probabilities, [node_features.shape[0], -1])
+
+                    if self._flags.only_save_conf:
+                        # save confidences
+                        save_conf_to_json(confidences=confidences,
+                                          page_path=page_path,
+                                          save_dir=self._flags.out_dir)
+                        # skip clustering
+                        continue
+
                     self._tb_clustering.set_confs(confidences)
                     self._tb_clustering.calc(method=self._flags.clustering_method)
 
                     # save pageXMLs with new clusterings
                     cluster_path = save_clustering_to_page(clustering=self._tb_clustering.tb_labels,
                                                            page_path=page_path,
-                                                           save_dir=self._flags.cluster_dir,
+                                                           save_dir=self._flags.out_dir,
                                                            info=self._tb_clustering.get_info(self._flags.clustering_method))
 
                     # debug output
@@ -458,6 +471,40 @@ def build_confidence_graph_dict(graph, page_path):
         out_dict[page_name][text_regions[i].id]['confidences'][text_regions[j].id] = w
 
     return out_dict
+
+
+def save_conf_to_json(confidences, page_path, save_dir, symmetry_fn=gmean):
+    page = Page(page_path)
+    text_regions = page.get_regions()['TextRegion']
+    text_regions = discard_regions(text_regions)
+    assert len(confidences) == len(text_regions), f"Number of nodes in confidences ({len(confidences)}) does not " \
+                                                  f"match number of text regions ({len(text_regions)}) in {page_path}."
+
+    # make confidences symmetric
+    if symmetry_fn:
+        conf_transpose = confidences.transpose()
+        temp_mat = np.stack([confidences, conf_transpose], axis=-1)
+        confidences = symmetry_fn(temp_mat, axis=-1)
+
+    # Build confidence dict
+    conf_dict = dict()
+    for i in range(len(text_regions)):
+        conf_dict[text_regions[i].id] = dict()
+        for j in range(len(text_regions)):
+            conf_dict[text_regions[i].id][text_regions[j].id] = str(confidences[i, j])
+    out_dict = dict()
+    out_dict["confidences"] = conf_dict
+
+    # Dump json
+    save_name = os.path.splitext(os.path.basename(page_path))[0] + "_confidences.json"
+    page_dir = os.path.dirname(page_path)
+    save_dir = os.path.join(save_dir, page_dir, "confidences")
+    if not os.path.isdir(save_dir):
+        os.makedirs(save_dir)
+    save_path = os.path.join(save_dir, save_name)
+    with open(save_path, "w") as out_file:
+        json.dump(out_dict, out_file)
+        logging.info(f"Saved json with graph confidences '{save_path}'")
 
 
 def save_clustering_to_page(clustering, page_path, save_dir, info=""):

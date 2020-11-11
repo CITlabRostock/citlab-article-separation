@@ -147,8 +147,6 @@ class InputGNN(object):
         Tout_list.extend([tf.int32, tf.int32, tf.int32])
 
         return_list = tf.py_func(func=self._parse_function, inp=[file_path], Tout=Tout_list, stateful=False)
-        if return_list is None:
-            return None
 
         num_nodes = return_list[0]
         interacting_nodes = return_list[1]
