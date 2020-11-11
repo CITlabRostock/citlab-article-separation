@@ -366,7 +366,7 @@ def discard_text_regions_and_lines(text_regions, text_lines=None):
             continue
         # ... too small
         bounding_box = tr.points.to_polygon().get_bounding_box()
-        if bounding_box.width < 5 or bounding_box.height < 5:
+        if bounding_box.width < 10 or bounding_box.height < 10:
             text_regions.remove(tr)
             logging.debug(f"Discarding TextRegion {tr.id} (bounding box too small, height={bounding_box.height}, "
                           f"width={bounding_box.width})")
