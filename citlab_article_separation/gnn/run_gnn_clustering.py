@@ -497,8 +497,8 @@ def save_conf_to_json(confidences, page_path, save_dir, symmetry_fn=gmean):
 
     # Dump json
     save_name = os.path.splitext(os.path.basename(page_path))[0] + "_confidences.json"
-    page_dir = os.path.dirname(page_path)
-    save_dir = os.path.join(save_dir, page_dir, "confidences")
+    page_dir = re.sub(r'page$', 'confidences', os.path.dirname(page_path))
+    save_dir = os.path.join(save_dir, page_dir)
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
     save_path = os.path.join(save_dir, save_name)
@@ -525,7 +525,7 @@ def save_clustering_to_page(clustering, page_path, save_dir, info=""):
     # Write pagexml
     page.set_textline_attr(textlines)
     save_name = re.sub(r'\.xml$', '_clustering.xml', os.path.basename(page_path))
-    page_dir = os.path.dirname(page_path)
+    page_dir = re.sub(r'page$', 'clustering', os.path.dirname(page_path))
     if info:
         save_dir = os.path.join(save_dir, page_dir, info)
     else:
