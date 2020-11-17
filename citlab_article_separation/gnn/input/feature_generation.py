@@ -637,7 +637,7 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
 
     # Get data from pagexml and write to json
     create_default_dir = False if out_path else True
-    out_counter = 0
+    skipped_pages = []
     for page_path in page_paths:
         # build input & target
         num_nodes, interacting_nodes, num_interacting_nodes, node_features, edge_features, \
@@ -684,8 +684,12 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
             with open(out, "w") as out_file:
                 json.dump(out_dict, out_file)
                 print(f"Wrote {out}")
-                out_counter += 1
-    print(f"Wrote {out_counter}/{len(page_paths)} files.")
+        else:
+            skipped_pages.append(page_path)
+    print(f"Wrote {len(page_paths)-len(skipped_pages)}/{len(page_paths)} files.")
+    print("Skipped files:")
+    for skipped in skipped_pages:
+        print(skipped)
 
 
 if __name__ == '__main__':

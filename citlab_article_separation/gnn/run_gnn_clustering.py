@@ -185,7 +185,7 @@ class EvaluateRelation(object):
         return ph_dict
 
     def evaluate(self):
-        print("Start evaluation...")
+        logging.info("Start evaluation...")
         graph = self._load_graph()
         os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(str(x) for x in self._flags.gpu_devices)
         gpu_options = tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=self._flags.gpu_memory_fraction - 0.09,
@@ -195,7 +195,7 @@ class EvaluateRelation(object):
 
         with sess.graph.as_default() as graph:
             # for i in [n.name for n in tf.get_default_graph().as_graph_def().node if "graph" not in n.name]:
-            #     print(i)
+            #     logging.debug(i)
 
             with tf.Graph().as_default():  # write dummy placeholder in another graph
                 placeholders = self._get_placeholder()
@@ -231,8 +231,8 @@ class EvaluateRelation(object):
             start_timer = time.time()
             while True:  # Loop until dataset is empty
                 if self._flags.batch_limiter != -1 and self._flags.batch_limiter <= batch_counter:
-                    print("stop validation after {} batches with {} samples each.".format(batch_counter,
-                                                                                          self._flags.batch_size))
+                    logging.info(f"stop validation after {batch_counter} batches with "
+                                 f"{self._flags.batch_size} samples each.")
                     break
                 try:
                     # get one batch (input_dict, target_dict) from generator
@@ -260,7 +260,7 @@ class EvaluateRelation(object):
                     class_probabilities = output[0, :, 1]
                     probs.append(class_probabilities)
 
-                    print(f"\nProcessing... {page_path}")
+                    logging.info(f"\nProcessing... {page_path}")
                     if 'node_features' in placeholders:
                         node_features_node = graph.get_tensor_by_name('node_features:0')
                         node_features = feed_dict[node_features_node][0]  # assume batch_size = 1
@@ -351,42 +351,42 @@ class EvaluateRelation(object):
                 except tf.errors.OutOfRangeError:
                     break
 
-            # Compute Precision, Recall, F1
-            full_targets = np.squeeze(np.concatenate(targets, axis=-1))
-            full_probs = np.squeeze(np.concatenate(probs, axis=-1))
-            prec, rec, thresholds = precision_recall_curve(full_targets, full_probs)
-            f_score = (2 * prec * rec) / (prec + rec)  # element-wise (broadcast)
+            # # Compute Precision, Recall, F1
+            # full_targets = np.squeeze(np.concatenate(targets, axis=-1))
+            # full_probs = np.squeeze(np.concatenate(probs, axis=-1))
+            # prec, rec, thresholds = precision_recall_curve(full_targets, full_probs)
+            # f_score = (2 * prec * rec) / (prec + rec)  # element-wise (broadcast)
+            #
+            # # P, R, F at relative thresholds
+            # print("\n Relative Thresholds:")
+            # print(f" |{'Threshold':>10}{'Precision':>12}{'Recall':>12}{'F1-Score':>12}")
+            # print(" | " + "-" * 45)
+            # for j in range(self._flags.num_p_r_thresholds + 1):
+            #     i = j * ((len(thresholds) - 1) // self._flags.num_p_r_thresholds)
+            #     print(f" |{thresholds[i]:10f}{prec[i]:12f}{rec[i]:12f}{f_score[i]:12f}")
+            #
+            # # P, R, F at fixed thresholds
+            # print("\n Fixed Thresholds:")
+            # print(f" |{'Threshold':>10}{'Precision':>12}{'Recall':>12}{'F1-Score':>12}")
+            # print(" | " + "-" * 45)
+            # step = 1 / self._flags.num_p_r_thresholds
+            # j = 0
+            # for i in range(len(thresholds)):
+            #     if thresholds[i] >= j * step:
+            #         print(f" |{thresholds[i]:10f}{prec[i]:12f}{rec[i]:12f}{f_score[i]:12f}")
+            #         j += 1
+            #         if j * step >= 1.0:
+            #             break
+            #
+            # # Best F1-Score
+            # i_f = np.argmax(f_score)
+            # print("\n Best F1-Score:")
+            # print(f" |{'Threshold':>10}{'Precision':>12}{'Recall':>12}{'F1-Score':>12}")
+            # print(" | " + "-" * 45)
+            # print(f" |{thresholds[i_f]:10f}{prec[i_f]:12f}{rec[i_f]:12f}{f_score[i_f]:12f}")
 
-            # P, R, F at relative thresholds
-            print("\n Relative Thresholds:")
-            print(f" |{'Threshold':>10}{'Precision':>12}{'Recall':>12}{'F1-Score':>12}")
-            print(" | " + "-" * 45)
-            for j in range(self._flags.num_p_r_thresholds + 1):
-                i = j * ((len(thresholds) - 1) // self._flags.num_p_r_thresholds)
-                print(f" |{thresholds[i]:10f}{prec[i]:12f}{rec[i]:12f}{f_score[i]:12f}")
-
-            # P, R, F at fixed thresholds
-            print("\n Fixed Thresholds:")
-            print(f" |{'Threshold':>10}{'Precision':>12}{'Recall':>12}{'F1-Score':>12}")
-            print(" | " + "-" * 45)
-            step = 1 / self._flags.num_p_r_thresholds
-            j = 0
-            for i in range(len(thresholds)):
-                if thresholds[i] >= j * step:
-                    print(f" |{thresholds[i]:10f}{prec[i]:12f}{rec[i]:12f}{f_score[i]:12f}")
-                    j += 1
-                    if j * step >= 1.0:
-                        break
-
-            # Best F1-Score
-            i_f = np.argmax(f_score)
-            print("\n Best F1-Score:")
-            print(f" |{'Threshold':>10}{'Precision':>12}{'Recall':>12}{'F1-Score':>12}")
-            print(" | " + "-" * 45)
-            print(f" |{thresholds[i_f]:10f}{prec[i_f]:12f}{rec[i_f]:12f}{f_score[i_f]:12f}")
-
-            print("\nTime: {:.2f} seconds".format(time.time() - start_timer))
-        print("Evaluation finished.")
+            logging.info("\nTime: {:.2f} seconds".format(time.time() - start_timer))
+        logging.info("Evaluation finished.")
 
 
 def build_weighted_relation_graph(relations, weights, feature_dicts=None):
@@ -515,10 +515,6 @@ def save_clustering_to_page(clustering, page_path, save_dir, info=""):
 def graph_edge_conf_histogram(graph, num_bins):
     conf = [w for u, v, w in graph.edges.data('weight')]
     c = np.array(conf)
-    print(c.shape)
-    print(np.min(c))
-    print(np.max(c))
-    print(np.mean(c))
     hist, bin_edges = np.histogram(conf, bins=num_bins, range=(0.0, 1.0))
     for i in range(num_bins):
         logging.debug(f"Edges with conf [{bin_edges[i]:.2f}, {bin_edges[i + 1]:.2f}): {hist[i]}")

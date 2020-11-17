@@ -49,7 +49,7 @@ class TextblockClustering(object):
         self.clustering_params["min_samples"] = 1
 
         # Updating of the default params if provided via flags as a dict
-        for i in flags.clustering_params:
+        for i in self._flags.clustering_params:
             if i not in self.clustering_params:
                 logging.critical(f"Given input_params-key '{i}' is not used by class 'TextblockClustering'!")
         self.clustering_params.update(flags.clustering_params)
