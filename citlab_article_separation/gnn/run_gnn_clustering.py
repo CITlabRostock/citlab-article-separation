@@ -260,7 +260,7 @@ class EvaluateRelation(object):
                     class_probabilities = output[0, :, 1]
                     probs.append(class_probabilities)
 
-                    logging.info(f"\nProcessing... {page_path}")
+                    logging.info(f"Processing... {page_path}")
                     if 'node_features' in placeholders:
                         node_features_node = graph.get_tensor_by_name('node_features:0')
                         node_features = feed_dict[node_features_node][0]  # assume batch_size = 1
@@ -385,7 +385,7 @@ class EvaluateRelation(object):
             # print(" | " + "-" * 45)
             # print(f" |{thresholds[i_f]:10f}{prec[i_f]:12f}{rec[i_f]:12f}{f_score[i_f]:12f}")
 
-            logging.info("\nTime: {:.2f} seconds".format(time.time() - start_timer))
+            logging.info("Time: {:.2f} seconds".format(time.time() - start_timer))
         logging.info("Evaluation finished.")
 
 

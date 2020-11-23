@@ -639,6 +639,7 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
     create_default_dir = False if out_path else True
     skipped_pages = []
     for page_path in page_paths:
+        logging.info(f"Processing... {page_path}")
         # build input & target
         num_nodes, interacting_nodes, num_interacting_nodes, node_features, edge_features, \
         visual_regions_nodes, num_points_visual_regions_nodes, \
@@ -676,20 +677,20 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
             # Create output directory
             if not os.path.isdir(out_path):
                 os.makedirs(out_path)
-                print(f"Created output directory {out_path}")
+                logging.info(f"Created output directory {out_path}")
 
             # Dump jsons
             file_name = os.path.splitext(os.path.basename(page_path))[0] + ".json"
             out = os.path.join(out_path, file_name)
             with open(out, "w") as out_file:
                 json.dump(out_dict, out_file)
-                print(f"Wrote {out}")
+                logging.info(f"Saved json with graph features '{out}'")
         else:
             skipped_pages.append(page_path)
-    print(f"Wrote {len(page_paths)-len(skipped_pages)}/{len(page_paths)} files.")
-    print("Skipped files:")
+    logging.info(f"Wrote {len(page_paths)-len(skipped_pages)}/{len(page_paths)} files.")
+    logging.info("Skipped files:")
     for skipped in skipped_pages:
-        print(skipped)
+        logging.info(f"'{skipped}'")
 
 
 if __name__ == '__main__':

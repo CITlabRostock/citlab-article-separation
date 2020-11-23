@@ -41,7 +41,7 @@ if __name__ == "__main__":
         text_regions = page.get_text_regions()
         num_nodes = len(text_regions)
         # load confidence json
-        logging.info(f"\nProcessing... {json_path}")
+        logging.info(f"Processing... {json_path}")
         with open(json_path, "r") as json_file:
             data = json.load(json_file)["confidences"]
             assert(len(data) == num_nodes), f"Mismatch: Number of TextRegions in page ({num_nodes}), Number of " \
@@ -62,5 +62,5 @@ if __name__ == "__main__":
                                                page_path=page_path,
                                                save_dir=FLAGS.out_dir,
                                                info=tb_clustering.get_info(FLAGS.clustering_method))
-    logging.info("\nTime: {:.2f} seconds".format(time.time() - start_timer))
+    logging.info("Time: {:.2f} seconds".format(time.time() - start_timer))
     logging.info("Clustering process finished.")
