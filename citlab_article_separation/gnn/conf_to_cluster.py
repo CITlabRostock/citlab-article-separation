@@ -5,7 +5,7 @@ import numpy as np
 
 import citlab_python_util.basic.flags as flags
 from citlab_article_separation.gnn.clustering.textblock_clustering import TextblockClustering
-from citlab_article_separation.gnn.run_gnn_clustering import save_clustering_to_page
+from citlab_article_separation.gnn.io import save_clustering_to_page
 from citlab_python_util.io.path_util import get_page_from_conf_path
 from citlab_python_util.parser.xml.page.page import Page
 
