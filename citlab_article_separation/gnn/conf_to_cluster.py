@@ -8,6 +8,7 @@ from citlab_article_separation.gnn.clustering.textblock_clustering import Textbl
 from citlab_article_separation.gnn.io import save_clustering_to_page
 from citlab_python_util.io.path_util import get_page_from_conf_path
 from citlab_python_util.parser.xml.page.page import Page
+from citlab_article_separation.gnn.input.feature_generation import discard_text_regions_and_lines as discard_regions
 
 flags.define_string('eval_list',   '', '.lst-file specifying the confidence json files used for clustering')
 flags.define_choices('clustering_method', ['dbscan', 'linkage', 'greedy', 'dbscan_std'], 'dbscan', str,
@@ -38,7 +39,9 @@ if __name__ == "__main__":
     for json_path, page_path in zip(json_paths, page_paths):
         # load page
         page = Page(page_path)
+        # Get text regions and discard degenerate ones
         text_regions = page.get_text_regions()
+        text_regions, _ = discard_regions(text_regions)
         num_nodes = len(text_regions)
         # load confidence json
         logging.info(f"Processing... {json_path}")
