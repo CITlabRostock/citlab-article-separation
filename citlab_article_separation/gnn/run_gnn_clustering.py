@@ -13,7 +13,7 @@ import citlab_python_util.basic.flags as flags
 from citlab_article_separation.gnn.input.input_dataset import InputGNN
 from citlab_article_separation.gnn.clustering.textblock_clustering import TextblockClustering
 from citlab_article_separation.gnn.io import plot_graph_clustering_and_page, save_clustering_to_page, \
-    save_conf_to_json, create_undirected_graph, build_weighted_relation_graph
+    save_conf_to_json, build_thresholded_relation_graph
 from citlab_python_util.io.path_util import *
 
 
@@ -293,14 +293,8 @@ class EvaluateRelation(object):
                         #                                                class_probabilities.tolist(),
                         #                                                feature_dicts)
                         # else:
-                        graph_full = build_weighted_relation_graph(relations.tolist(),
-                                                                   class_probabilities.tolist())
-
-                        graph_u = create_undirected_graph(graph_full,
-                                                          reciprocal=False)
-                        edges_below_threshold = [(u, v) for u, v, w in graph_u.edges.data('weight')
-                                                 if w < self._tb_clustering.clustering_params["confidence_threshold"]]
-                        graph_u.remove_edges_from(edges_below_threshold)
+                        graph = build_thresholded_relation_graph(relations, class_probabilities,
+                                                                 self._tb_clustering.clustering_params["confidence_threshold"])
 
                         # # full confidence graph
                         # edge_colors = []
@@ -323,9 +317,9 @@ class EvaluateRelation(object):
 
                         # clustered graph
                         edge_colors = []
-                        for u, v, d in graph_u.edges(data='weight'):
+                        for u, v, d in graph.edges(data='weight'):
                             edge_colors.append(d)
-                        plot_graph_clustering_and_page(graph=graph_u,
+                        plot_graph_clustering_and_page(graph=graph,
                                                        node_features=node_features,
                                                        page_path=page_path,
                                                        cluster_path=cluster_path,

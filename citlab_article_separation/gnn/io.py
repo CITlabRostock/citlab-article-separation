@@ -18,29 +18,29 @@ from citlab_article_separation.gnn.input.feature_generation import discard_text_
 from citlab_python_util.io.path_util import *
 
 
-def build_weighted_relation_graph(relations, weights, feature_dicts=None):
-    if type(relations) == np.ndarray:
-        assert relations.ndim == 2, f"Expected 'relations' to be 2d, got {relations.ndim}d."
-        relations = relations.tolist()
+def build_weighted_relation_graph(edges, weights, feature_dicts=None):
+    if type(edges) == np.ndarray:
+        assert edges.ndim == 2, f"Expected 'relations' to be 2d, got {edges.ndim}d."
+        edges = edges.tolist()
     if type(weights) == np.ndarray:
         assert weights.ndim == 1, f"Expected 'weights' to be 1d, got {weights.ndim}d."
         weights = weights.tolist()
-    assert (len(relations) == len(weights)), f"Number of elements in 'relations' {len(relations)} and" \
+    assert (len(edges) == len(weights)), f"Number of elements in 'relations' {len(edges)} and" \
                                              f" 'weights' {len(weights)} has to match."
 
     graph = nx.DiGraph()
-    for i in range(len(relations)):
+    for i in range(len(edges)):
         if feature_dicts is not None:
-            graph.add_edge(*relations[i], weight=weights[i], **feature_dicts[i])
+            graph.add_edge(*edges[i], weight=weights[i], **feature_dicts[i])
         else:
-            graph.add_edge(*relations[i], weight=weights[i])
+            graph.add_edge(*edges[i], weight=weights[i])
     return graph
 
 
 def create_undirected_graph(digraph, symmetry_fn=gmean, reciprocal=False):
-    G = nx.Graph()
-    G.graph.update(deepcopy(digraph.graph))
-    G.add_nodes_from((n, deepcopy(d)) for n, d in digraph._node.items())
+    graph = nx.Graph()
+    graph.graph.update(deepcopy(digraph.graph))
+    graph.add_nodes_from((n, deepcopy(d)) for n, d in digraph._node.items())
     for u, successcors in digraph.succ.items():
         for v, data in successcors.items():
             u_v_data = deepcopy(data)
@@ -49,10 +49,18 @@ def create_undirected_graph(digraph, symmetry_fn=gmean, reciprocal=False):
                 v_u_data = digraph.pred[u][v]
                 if symmetry_fn:
                     u_v_data['weight'] = symmetry_fn([u_v_data['weight'], v_u_data['weight']])
-                G.add_edge(u, v, **u_v_data)
+                graph.add_edge(u, v, **u_v_data)
             elif not reciprocal:
-                G.add_edge(u, v, **u_v_data)
-    return G
+                graph.add_edge(u, v, **u_v_data)
+    return graph
+
+
+def build_thresholded_relation_graph(edges, weights, threshold, reciprocal=False):
+    graph_full = build_weighted_relation_graph(edges, weights)
+    graph = create_undirected_graph(graph_full, reciprocal=reciprocal)
+    edges_below_threshold = [(u, v) for u, v, w in graph.edges.data('weight') if w < threshold]
+    graph.remove_edges_from(edges_below_threshold)
+    return graph
 
 
 def build_confidence_graph_dict(graph, page_path):
