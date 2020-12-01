@@ -293,8 +293,8 @@ class EvaluateRelation(object):
                         #                                                class_probabilities.tolist(),
                         #                                                feature_dicts)
                         # else:
-                        graph = build_thresholded_relation_graph(relations, class_probabilities,
-                                                                 self._tb_clustering.clustering_params["confidence_threshold"])
+                        nx_graph = build_thresholded_relation_graph(relations, class_probabilities,
+                                                                    self._tb_clustering.clustering_params["confidence_threshold"])
 
                         # # full confidence graph
                         # edge_colors = []
@@ -317,9 +317,9 @@ class EvaluateRelation(object):
 
                         # clustered graph
                         edge_colors = []
-                        for u, v, d in graph.edges(data='weight'):
+                        for u, v, d in nx_graph.edges(data='weight'):
                             edge_colors.append(d)
-                        plot_graph_clustering_and_page(graph=graph,
+                        plot_graph_clustering_and_page(graph=nx_graph,
                                                        node_features=node_features,
                                                        page_path=page_path,
                                                        cluster_path=cluster_path,
