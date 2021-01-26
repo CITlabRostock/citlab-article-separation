@@ -69,7 +69,7 @@ if __name__ == '__main__':
             sublist_path = os.path.join(json_dir, json_name + "_" + str(index) + ".lst")
             with open(sublist_path, "w") as lst_file:
                 for path in sublist:
-                    lst_file.write(path)
+                    lst_file.write(path + "\n")
                 logging.info(f"Wrote sublist {sublist_path}")
 
         for p in processes:
