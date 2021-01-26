@@ -2,6 +2,7 @@ import json
 import os
 import logging
 import argparse
+import multiprocessing as mp
 from citlab_python_util.parser.xml.page.page import Page
 
 
@@ -52,19 +53,27 @@ if __name__ == '__main__':
     xml_files = [line.rstrip('\n') for line in open(args.page_paths, "r")]
     n = args.num_splits
     if n > 1:
+        split = (len(xml_files) // n) + 1
+        processes = []
         for index, sublist in enumerate([xml_files[i:i + n] for i in range(0, len(xml_files), n)]):
             # generate prediction json for sublist
             json_name = os.path.splitext(os.path.basename(args.json_path))[0]
             json_dir = os.path.dirname(args.json_path)
             json_path = os.path.join(json_dir, json_name + "_" + str(index) + ".json")
-            print(json_path)
-            generate_prediction_json(sublist, json_path)
+            # start worker
+            p = mp.Process(target=generate_prediction_json, args=(sublist, json_path))
+            p.start()
+            logging.info(f"Started worker {index}")
+            processes.append(p)
             # save sublist to file
             sublist_path = json_name + "_" + str(index) + ".lst"
             with open(sublist_path, "w") as lst_file:
                 for path in sublist:
                     lst_file.write(path)
                 logging.info(f"Wrote sublist {sublist_path}")
+
+        for p in processes:
+            p.join()
 
     else:
         generate_prediction_json(xml_files, args.json_path)
