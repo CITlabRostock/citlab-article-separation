@@ -128,11 +128,10 @@ if __name__ == "__main__":
                                                des_dist=flags.des_dist, max_d=flags.max_d,
                                                use_java_code=flags.use_java_code,
                                                target_average_interline_distance=flags.target_average_interline_distance)
-    try:
-        save_results_in_pagexml(path_to_pagexml=xml_file, list_of_txtlines=lst_txtlines,
-                                list_of_txtline_labels=article_id_list)
-    except:
-        print("Saving Error for file: {}".format(xml_file))
+
+    # TODO: except?
+    save_results_in_pagexml(path_to_pagexml=xml_file, list_of_txtlines=lst_txtlines,
+                            list_of_txtline_labels=article_id_list)
 
     # shut down the java virtual machine
     jpype.shutdownJVM()

@@ -219,10 +219,8 @@ if __name__ == "__main__":
     text_region_textline_dict = \
         create_text_regions(art_txtlines_dict=article_textlines_dict, txtline_dict=textline_dict, alpha=flags.alpha)
 
-    try:
-        save_results_in_pagexml(path_to_pagexml=xml_file, text_region_txtline_dict=text_region_textline_dict)
-    except:
-        print("Saving Error for file: {}".format(xml_file))
+    # TODO: except?
+    save_results_in_pagexml(path_to_pagexml=xml_file, text_region_txtline_dict=text_region_textline_dict)
 
     # shut down the java virtual machine
     jpype.shutdownJVM()

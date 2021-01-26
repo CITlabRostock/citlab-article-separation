@@ -95,8 +95,9 @@ def get_tb_similarities(text_regions, feature_extractor):
     return feature_extractor.feature_dict
 
 
-def get_textline_stroke_widths_heights_dist_trafo(page_path, text_lines):
-    img_path = get_img_from_page_path(page_path)
+def get_textline_stroke_widths_heights_dist_trafo(page_path, text_lines, img_path=None):
+    if img_path is None:
+        img_path = get_img_from_page_path(page_path)
     if not img_path:
         raise ValueError(f"Could not find corresponding image file to pagexml\n{page_path}")
     # initialize SWT and textline labeling
@@ -234,7 +235,7 @@ def get_edge_separator_feature(text_region_a, text_region_b, seperator_regions):
     center_x_b = min_x_b + width_b / 2
     center_y_b = min_y_b + height_b / 2
     # visual line connecting both text regions
-    text_region_segment = LineString([(center_x_a, center_y_a), (center_x_b, center_y_b)])
+    tr_segment = LineString([(center_x_a, center_y_a), (center_x_b, center_y_b)])
     # go over seperator regions and check for intersections
     horizontally_separated = False
     vertically_separated = False
@@ -253,18 +254,20 @@ def get_edge_separator_feature(text_region_a, text_region_b, seperator_regions):
         s2 = (max_x_s, min_y_s)
         s3 = (min_x_s, max_y_s)
         s4 = (max_x_s, max_y_s)
-        # check for intersections between text_region_line and bounding box as prior test
-        if line_poly_intersection(text_region_segment, [s1, s2, s3, s4]):
+        # check for intersections/containment between tr_segment and bounding box as prior test
+        if line_poly_intersection(tr_segment, [s1, s2, s3, s4]) or \
+                line_in_bounding_box(tr_segment, min_x_s, max_x_s, min_y_s, max_y_s):
             # check for intersections between text_region_line and surrounding polygon
-            if line_poly_intersection(text_region_segment, separator_region.points.points_list):
+            if line_poly_intersection(tr_segment, separator_region.points.points_list):
                 if ratio < 5:
                     horizontally_separated = True
                 else:
                     vertically_separated = True
-                # print(f"{text_region_a.id} - {text_region_b.id} separated by {separator_region.id}")
                 if horizontally_separated and vertically_separated:
                     break
-    return [float(horizontally_separated), float(vertically_separated)]
+    separator_feature = [float(horizontally_separated), float(vertically_separated)]
+    logging.debug(f"{text_region_a.id} - {text_region_b.id}: {separator_feature}")
+    return separator_feature
 
 
 def line_poly_intersection(line, polygon):
@@ -278,6 +281,13 @@ def line_poly_intersection(line, polygon):
         segment = LineString([p1, p2])
         if line.intersects(segment):
             return True
+    return False
+
+
+def line_in_bounding_box(line, min_x, max_x, min_y, max_y):
+    x1, y1, x2, y2 = line.bounds
+    if x1 > min_x and x2 < max_x and y1 > min_y and y2 < max_y:
+        return True
     return False
 
 
@@ -694,7 +704,7 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
 
 
 if __name__ == '__main__':
-    logging.getLogger().setLevel("WARN")
+    logging.getLogger().setLevel("INFO")
 
     # Register a custom function for 'bool' so --flag=True works.
     def str2bool(v):
@@ -727,27 +737,25 @@ if __name__ == '__main__':
                             args.visual_regions,
                             (args.language, args.wv_path))
 
-    # page_path = "/home/johannes/devel/data/NewsEye_GT/AS_BC/NewsEye_ONB_232_textblocks/274950/ONB_nfp_18730705_corrected_duplicated/page/ONB_nfp_18730705_010.xml"
-    # page_path = "/home/johannes/devel/data/NewsEye_GT/AS_BC/NewsEye_NLF_200_textblocks/330063/1869_01_04/page/ac-00001.xml"
-    # page_path = "/home/johannes/devel/data/NewsEye_GT/AS_BC/NewsEye_ONB_232_textblocks/274954/ONB_ibn_19110701_corrected_duplicated/page/ONB_ibn_19110701_009.xml"
-
+    # # page_path = "/home/johannes/devel/data/NewsEye_GT/AS_BC/NewsEye_ONB_232_textblocks/274950/ONB_nfp_18730705_corrected_duplicated/page/ONB_nfp_18730705_010.xml"
+    # # page_path = "/home/johannes/devel/data/NewsEye_GT/AS_BC/NewsEye_NLF_200_textblocks/330063/1869_01_04/page/ac-00001.xml"
+    # # page_path = "/home/johannes/devel/data/NewsEye_GT/AS_BC/NewsEye_ONB_232_textblocks/274954/ONB_ibn_19110701_corrected_duplicated/page/ONB_ibn_19110701_009.xml"
+    # page_path = "/home/johannes/devel/aze19120915_00000002.xml"
+    # img_path = "/home/johannes/devel/aze19120915_00000002.jpg"
+    #
     # num_nodes, interacting_nodes, num_interacting_nodes, node_features, edge_features, \
     # visual_regions_nodes, num_points_visual_regions_nodes, visual_regions_edges, num_points_visual_regions_edges, \
     # gt_relations, gt_num_relations = \
     #     build_input_and_target_bc(page_path=page_path,
-    #                               num_node_features=16,
-    #                               num_edge_features=1,
     #                               interaction='delaunay',
-    #                               visual_regions=True)
-
-    # from input_fn.input_fn_rel.input_fn_generator_relation import get_img_from_page_path
-    # from trainer.lav_types.eval_rel_bc import build_weighted_relation_graph, create_undirected_graph, plot_graph_and_page
+    #                               visual_regions=False)
+    #
+    # from citlab_article_separation.gnn.io import build_weighted_relation_graph, create_undirected_graph, plot_graph_and_page
     # page = Page(page_path)
-    # img_path = get_img_from_page_path(page_path)
     # graph = build_weighted_relation_graph(interacting_nodes,
     #                                       [0.0 for i in range(len(interacting_nodes))],
     #                                       [{'separated_h': bool(e[0]), 'separated_v': bool(e[1])} for e in edge_features[:, :2]])
-    # graph = create_undirected_graph(graph, weight_handling='avg', reciprocal=False)
+    # graph = create_undirected_graph(graph)
     #
     # edge_colors = []
     # for u, v, d in graph.edges(data=True):
@@ -758,18 +766,18 @@ if __name__ == '__main__':
     #         color = 'r'
     #     edge_colors.append(color)
     # edge_cmap = None
-
-    # import matplotlib.pyplot as plt
-    # edge_colors = np.arange(len(list(graph.edges())))
-    # edge_cmap = plt.get_cmap('jet')
-
-    # plot_graph_and_page(page_path, graph, node_features, save_dir="/home/johannes",
+    #
+    # # import matplotlib.pyplot as plt
+    # # edge_colors = np.arange(len(list(graph.edges())))
+    # # edge_cmap = plt.get_cmap('jet')
+    #
+    # plot_graph_and_page(page_path, graph, node_features, img_path=img_path, save_dir="/home/johannes",
     #                     with_edges=True, with_labels=True, edge_color=edge_colors, edge_cmap=edge_cmap)
-
-    # edge_colors = []
-    # for u, v, d in graph_full.edges(data='weight'):
-    #     edge_colors.append(d)
-    # plot_graph_and_page(page_path, graph_full, node_features, self._flags.debug_dir,
-    #                     with_edges=True, with_labels=True, desc='confidences',
-    #                     edge_color=edge_colors, edge_cmap=plt.get_cmap('jet'),
-    #                     edge_vmin=0.0, edge_vmax=1.0)
+    #
+    # # edge_colors = []
+    # # for u, v, d in graph_full.edges(data='weight'):
+    # #     edge_colors.append(d)
+    # # plot_graph_and_page(page_path, graph_full, node_features, self._flags.debug_dir,
+    # #                     with_edges=True, with_labels=True, desc='confidences',
+    # #                     edge_color=edge_colors, edge_cmap=plt.get_cmap('jet'),
+    # #                     edge_vmin=0.0, edge_vmax=1.0)

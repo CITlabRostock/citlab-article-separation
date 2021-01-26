@@ -270,11 +270,12 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
     plt.close(plt.gcf())
 
 
-def plot_graph_and_page(page_path, graph, node_features, save_dir,
+def plot_graph_and_page(page_path, graph, node_features, save_dir, img_path=None,
                         with_edges=True, with_labels=True, desc=None, **kwds):
     # Get pagexml and image file
     page = Page(page_path)
-    img_path = get_img_from_page_path(page_path)
+    if img_path is None:
+        img_path = get_img_from_page_path(page_path)
 
     # Create figure
     fig, ax = plt.subplots(figsize=(16, 9))
@@ -304,7 +305,7 @@ def plot_graph_and_page(page_path, graph, node_features, save_dir,
 
     # Draw nodes
     graph_views = dict()
-    node_collection = nx.draw_networkx_nodes(graph, positions, ax=ax, node_color=node_colors, node_size=50, **kwds)
+    node_collection = nx.draw_networkx_nodes(graph, positions, ax=ax, node_color=node_colors, node_size=50)
     node_collection.set_zorder(3)
     graph_views['nodes'] = [node_collection]
     # Draw edges
@@ -319,7 +320,7 @@ def plot_graph_and_page(page_path, graph, node_features, save_dir,
             fig.colorbar(ScalarMappable(norm=norm, cmap=kwds['edge_cmap']), ax=ax, fraction=0.046, pad=0.04)
     # Draw labels
     if with_labels:
-        label_collection = nx.draw_networkx_labels(graph, positions, ax=ax, font_size=5, **kwds)
+        label_collection = nx.draw_networkx_labels(graph, positions, ax=ax, font_size=5)
         graph_views['labels'] = [label_collection]
         # Draw page underneath
         plot_util.plot_pagexml(page, img_path, ax=ax, plot_article=True, plot_legend=False)

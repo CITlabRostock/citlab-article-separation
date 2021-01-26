@@ -250,6 +250,8 @@ class EvaluateRelation(object):
                     class_probabilities = output[0, :, 1]
                     probs.append(class_probabilities)
 
+                    # TODO: manually set class_probabilities of edges over horizontal separators to zero?!
+
                     logging.info(f"Processing... {page_path}")
                     if 'node_features' in placeholders:
                         node_features_node = graph.get_tensor_by_name('node_features:0')
