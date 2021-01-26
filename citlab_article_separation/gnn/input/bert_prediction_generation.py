@@ -66,7 +66,7 @@ if __name__ == '__main__':
             logging.info(f"Started worker {index}")
             processes.append(p)
             # save sublist to file
-            sublist_path = json_name + "_" + str(index) + ".lst"
+            sublist_path = os.path.join(json_dir, json_name + "_" + str(index) + ".lst")
             with open(sublist_path, "w") as lst_file:
                 for path in sublist:
                     lst_file.write(path)
