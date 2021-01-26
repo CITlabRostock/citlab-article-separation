@@ -46,16 +46,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--page_paths", type=str, help="list file containing paths to pageXML files", required=True)
     parser.add_argument("--json_path", type=str, help="output path for json file", required=True)
-    parser.add_argument("--num_splits", type=int, default=1,
-                        help="number of partitions to create from original list file")
+    parser.add_argument("--num_workers", type=int, default=1,
+                        help="number of partitions to create from original list file and to compute in parallel")
     args = parser.parse_args()
 
     xml_files = [line.rstrip('\n') for line in open(args.page_paths, "r")]
-    n = args.num_splits
+    n = args.num_workers
     if n > 1:
         split = (len(xml_files) // n) + 1
         processes = []
-        for index, sublist in enumerate([xml_files[i:i + n] for i in range(0, len(xml_files), n)]):
+        for index, sublist in enumerate([xml_files[i:i + split] for i in range(0, len(xml_files), split)]):
             # generate prediction json for sublist
             json_name = os.path.splitext(os.path.basename(args.json_path))[0]
             json_dir = os.path.dirname(args.json_path)
