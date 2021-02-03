@@ -27,7 +27,7 @@ class DBScanRelation:
         self.min_neighbors_for_cluster = min_neighbors_for_cluster
         self.confidence_threshold = confidence_threshold
         self.cluster_agreement_threshold = cluster_agreement_threshold
-        self.weight_handling = 'avg'
+        self.weight_handling = weight_handling
         self.assign_noise_clusters = assign_noise_clusters
 
     def initialize_clustering(self, num_nodes, confidences):

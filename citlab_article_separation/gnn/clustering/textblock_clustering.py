@@ -1,8 +1,8 @@
 import logging
-import configparser
 import numpy as np
 from scipy.cluster.hierarchy import linkage, fcluster
 from sklearn.cluster import dbscan
+from scipy.stats import gmean
 from citlab_article_separation.gnn.clustering.dbscan import DBScanRelation
 
 
@@ -12,51 +12,93 @@ class TextblockClustering(object):
 
     Usage::
 
-        tb2ni = TB2NI(config)
+        tb_clustering = TextblockClustering(flags)
         …
-        tb2ni.set_confs(confListList, symmFct=scipy.stats.gmean)
-        tb2ni.calc(method='greedy')
-        print(tb2ni.cntClasses, tb2ni.cntNoise)
-        print(tb2ni.tbLabels, tb2ni.tbClasses)
-        print(tb2ni.relLLH)
+        tb_clustering.set_confs(confs, symmetry_fn=scipy.stats.gmean)
+        tb_clustering.calc(method='greedy')
+        print(tb_clustering.num_classes, tb_clustering.num_noise)
+        print(tb_clustering.tb_labels, tb_clustering.tb_classes)
+        print(tb_clustering.rel_LLH)
 
     """
-    #: configparser.ConfigParser:   parameter container
-    params = None
-    #: list of int: textblock labels
-    tb_labels = None
-    #: list of list of int: textblock classes
-    tb_classes = None
-    #: int:    counts classes
-    num_classes = 0
-    #: int: counts noise classes (see DBSCAN algorithm)
-    num_noise = 0
-    #: float: special relative -loglikelihood value (for internal comparison only)
-    rel_LLH = 0.0
 
-    def __init__(self, config_path):
+    def __init__(self, flags):
         """
         standard constructor
 
         Args:
-            config_path:  path to config file containing all params in section per method
+            flags:  path to flags object containing all params
         """
-        self.params = configparser.ConfigParser()
-        self.params.read(config_path)
-        self._dbscanner = None
+        self.clustering_params = dict()
+        self._flags = flags
+
+        # Default params which are method dependant
+        # [dbscan]
+        self.clustering_params["min_neighbors_for_cluster"] = 1
+        self.clustering_params["confidence_threshold"] = 0.5
+        self.clustering_params["cluster_agreement_threshold"] = 0.5
+        self.clustering_params["assign_noise_clusters"] = True
+        # [linkage]
+        self.clustering_params["method"] = "centroid"
+        self.clustering_params["criterion"] = "distance"
+        self.clustering_params["t"] = -1.0
+        # [greedy]
+        self.clustering_params["max_iteration"] = 1000
+        # [dbscan_std]
+        self.clustering_params["epsilon"] = 0.5
+        self.clustering_params["min_samples"] = 1
+
+        # Updating of the default params if provided via flags as a dict
+        for i in self._flags.clustering_params:
+            if i not in self.clustering_params:
+                logging.critical(f"Given input_params-key '{i}' is not used by class 'TextblockClustering'!")
+        self.clustering_params.update(flags.clustering_params)
+
+        # Public params to access clustering results
+        self.tb_labels = None  # list of int: textblock labels
+        self.tb_classes = None  # list of list of int: textblock classes
+        self.num_classes = 0  # int: counts classes
+        self.num_noise = 0  # int: counts noise classes (see DBSCAN algorithm)
+        self.rel_LLH = 0.0  # float: special relative-loglikelihood value (for internal comparison only)
+
+        # Private params for internal computations
         self._conf_mat = None
         self._mat_dim = None
         self._dist_mat = None
         self._cond_dist_list = None
         self._delta_mat = None
+        self._dbscanner = None
 
-    def set_confs(self, confs, symmetry_fn=None):
+    def print_params(self):
+        print("##### {}:".format("CLUSTERING"))
+        sorted_dict = sorted(self.clustering_params.items(), key=lambda kv: kv[0])
+        for a in sorted_dict:
+            print("  {}: {}".format(a[0], a[1]))
+
+    def get_info(self, method):
+        """returns an info string with the most important paramters of the given method"""
+        info_string = None
+        if getattr(self, f'_{method}', None):
+            if method == 'dbscan':
+                info_string = f'dbscan_conf{self.clustering_params["confidence_threshold"]}_' \
+                              f'cluster{self.clustering_params["cluster_agreement_threshold"]}'
+            elif method == 'dbscan_std':
+                info_string = f'dbscan_std_eps{self.clustering_params["epsilon"]}_' \
+                              f'samples{self.clustering_params["min_samples"]}'
+            elif method == 'linkage':
+                info_string = f'linkage_{self.clustering_params["method"]}_{self.clustering_params["criterion"]}_' \
+                              f't{self.clustering_params["t"]}'
+            elif method == 'greedy':
+                info_string = f'greedy_iter{self.clustering_params["max_iteration"]}'
+        return info_string
+
+    def set_confs(self, confs, symmetry_fn=gmean):
         """
         sets confidence values and symmetrization function
 
         Args:
             confs (list of list of floats): confidence values from (0,1)
-            symmetry_fn (numpy-like matrix function):   function to make confidences symmetric
+            symmetry_fn (numpy-like matrix function): unction to make confidences symmetric
 
         Note:
             symmetry_fn will be applied to confidences, hence geometric is preferred over arithmetic mean.
@@ -94,7 +136,7 @@ class TextblockClustering(object):
             method (str): method name
 
         Note:
-            currently implemented methods: 'dbscan', 'linkage', 'greedy', 'dbscanStd'
+            currently implemented methods: 'dbscan', 'linkage', 'greedy', 'dbscan_std'
         """
         self.tb_labels = None
         self.tb_classes = None
@@ -132,21 +174,20 @@ class TextblockClustering(object):
                         delta_LLH = (self._delta_mat[idx0, idx1] + self._delta_mat[idx1, idx0]) / 2
                         self.rel_LLH += delta_LLH
 
-    def _dbscanStd(self):
-        minSamples = self.params.getint('dbscan', 'min_samples', fallback=1)
-        epsilon = self.params.getfloat('dbscan', 'epsilon', fallback=0.5)
-        (_, self.tb_labels) = dbscan(self._dist_mat, metric='precomputed', min_samples=minSamples,
-                                     eps=epsilon)
+    def _dbscan_std(self):
+        (_, self.tb_labels) = dbscan(self._dist_mat,
+                                     metric='precomputed',
+                                     min_samples=self.clustering_params["min_samples"],
+                                     eps=self.clustering_params["epsilon"])
         self._labels2classes()
         self.num_classes = len(self.tb_classes)
         self.num_noise = len([label for label in self.tb_labels if label == -1])
 
     def _greedy(self):
-        iter_max = self.params.getint('greedy', 'maxIteration', fallback=None)
         self.tb_labels = np.array(range(self._mat_dim), dtype=int)
         self._labels2classes()
         self._calcMat = self._delta_mat.copy()
-        iter_count = iter_max
+        iter_count = self.clustering_params["max_iteration"]
         while iter_count > 0:
             iter_count -= 1
             #  stärkste Kante
@@ -160,7 +201,7 @@ class TextblockClustering(object):
                 logging.debug(f'{self.tb_labels}')
                 logging.debug(f'{self.tb_classes}')
             else:
-                logging.info(f'… after {iter_max - iter_count} iterations')
+                logging.info(f'… after {self.clustering_params["max_iteration"] - iter_count} iterations')
                 break
 
         self.tb_classes = [cls for cls in self.tb_classes if len(cls) > 0]
@@ -183,32 +224,26 @@ class TextblockClustering(object):
             self._calcMat[cls1, idx] = self._calcMat[idx, cls1]
 
     def _linkage(self):
-        method = self.params.get('linkage', 'method', fallback='centroid')
-        criterion = self.params.get('linkage', 'criterion', fallback='distance')
-        t = self.params.getfloat('linkage', 't', fallback=-1.0)
-        linkageResult = linkage(np.array(self._cond_dist_list, dtype=float), method=method)
+        linkage_res = linkage(np.array(self._cond_dist_list, dtype=float), method=self.clustering_params["method"])
 
+        t = self.clustering_params["t"]
         if t < 0:
-            hierarchicalDistances = linkageResult[:, 2]
-            distanceMean = float(np.mean(hierarchicalDistances))
-            distanceMedian = float(np.median(hierarchicalDistances))
-            t = 1 / 2 * (distanceMean + distanceMedian)
+            hierarchical_distances = linkage_res[:, 2]
+            distance_mean = float(np.mean(hierarchical_distances))
+            distance_median = float(np.median(hierarchical_distances))
+            t = 1 / 2 * (distance_mean + distance_median)
 
-        self.tb_labels = fcluster(linkageResult, t=t, criterion=criterion)
+        self.tb_labels = fcluster(linkage_res, t=t, criterion=self.clustering_params["criterion"])
         self._labels2classes()
         self.num_classes = len(self.tb_classes)
         self.num_noise = len([label for label in self.tb_labels if label == -1])
 
     def _dbscan(self):
         if not self._dbscanner:
-            min_neighbors_for_cluster = self.params.getint('dbscan', 'min_neighbors_for_cluster', fallback=1)
-            confidence_threshold = self.params.getfloat('dbscan', 'confidence_threshold', fallback=0.5)
-            cluster_agreement_threshold = self.params.getfloat('dbscan', 'cluster_agreement_threshold', fallback=0.5)
-            assign_noise_clusters = self.params.getboolean('dbscan', 'assign_noise_clusters', fallback=True)
-            self._dbscanner = DBScanRelation(min_neighbors_for_cluster=min_neighbors_for_cluster,
-                                             confidence_threshold=confidence_threshold,
-                                             cluster_agreement_threshold=cluster_agreement_threshold,
-                                             assign_noise_clusters=assign_noise_clusters)
+            self._dbscanner = DBScanRelation(min_neighbors_for_cluster=self.clustering_params["min_neighbors_for_cluster"],
+                                             confidence_threshold=self.clustering_params["confidence_threshold"],
+                                             cluster_agreement_threshold=self.clustering_params["cluster_agreement_threshold"],
+                                             assign_noise_clusters=self.clustering_params["assign_noise_clusters"])
 
         self.tb_labels = self._dbscanner.cluster_relations(self._mat_dim, self._conf_mat)
         self._labels2classes()

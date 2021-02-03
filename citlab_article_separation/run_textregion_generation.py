@@ -28,6 +28,7 @@ def worker(sample, counter, flags, skipped_files):
     print("No {:5d}: {}".format(counter, sample))
     # saving error when exists
     if outputs[-2] != sample and outputs[-2] != "alpha value not suitable -> is increased":
+        print(outputs[-2])
         skipped_files.append(outputs[-2])
 
 

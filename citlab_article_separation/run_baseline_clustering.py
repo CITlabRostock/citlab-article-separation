@@ -36,6 +36,7 @@ def worker(sample, counter, flags, skipped_files):
 
     # saving error when exists
     if outputs[3] != '':
+        print(outputs[3])
         skipped_files.append(outputs[3])
 
 
