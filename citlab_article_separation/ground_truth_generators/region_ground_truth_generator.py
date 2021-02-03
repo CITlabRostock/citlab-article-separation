@@ -13,6 +13,8 @@ from citlab_article_separation.ground_truth_generators.ground_truth_generator_ba
 logger = logging.getLogger("TextBlockGroundTruthGenerator")
 logging.basicConfig(level=logging.WARNING)
 
+from tqdm import tqdm
+
 
 class RegionGroundTruthGenerator(GroundTruthGenerator):
     def __init__(self, path_to_img_lst, max_resolution=(0, 0), scaling_factor=1.0, use_bounding_box=False,
@@ -21,9 +23,12 @@ class RegionGroundTruthGenerator(GroundTruthGenerator):
         self.regions_list = [page.get_regions() for page in self.page_object_lst]
         self.image_regions_list = self.get_image_regions_list()
         self.separator_regions_list = self.get_separator_regions_list()
-        self.text_regions_list = self.get_valid_text_regions()
+        # self.text_regions_list = self.get_valid_text_regions()
+        self.text_regions_list = self.get_valid_text_regions(intersection_thresh=-1,
+                                                             region_types=[page_constants.TextRegionTypes.sPARAGRAPH,
+                                                                           page_constants.TextRegionTypes.sHEADING])
         self.heading_regions_list = self.get_valid_text_regions(intersection_thresh=-1,
-                                                                region_type=page_constants.TextRegionTypes.sHEADING)
+                                                                region_types=[page_constants.TextRegionTypes.sHEADING])
         self.use_bounding_box = use_bounding_box
         self.use_min_area_rect = use_min_area_rect
         if args.save_json:
@@ -68,12 +73,11 @@ class RegionGroundTruthGenerator(GroundTruthGenerator):
             regions_list = self.text_regions_list
 
         data = {}
-        for i in range(len(self.img_path_lst)):
+        for i in tqdm(range(len(self.img_path_lst))):
             if enforce_unique_name:
                 image_path_new = prepend_folder_name(self.img_path_lst)
                 image_name = os.path.basename(image_path_new)
             else:
-                print(self.img_path_lst[i])
                 image_name = os.path.basename(self.img_path_lst[i])
 
             img_height = self.img_res_lst[i][0]
@@ -157,23 +161,25 @@ class RegionGroundTruthGenerator(GroundTruthGenerator):
                                                closed=True)
         return region_gt_img
 
-    def get_valid_text_regions(self, intersection_thresh=20, region_type=page_constants.TextRegionTypes.sPARAGRAPH):
+    def get_valid_text_regions(self, intersection_thresh=20, region_types=None):
         """
         Get valid TextRegions from the PAGE file, where we check for intersections with images.
         If `intersection_thresh` is negative, ignore the intersection and return all text_regions of type
         `region_type`.
         :param intersection_thresh:
-        :param region_type:
+        :param region_types:
         :return:
         """
+        if region_types is None:
+            region_types = [page_constants.TextRegionTypes.sPARAGRAPH]
         if intersection_thresh < 0:
-            return [[region for region in regions[page_constants.sTEXTREGION] if region.region_type == region_type]
+            return [[region for region in regions[page_constants.sTEXTREGION] if region.region_type in region_types]
                     for regions in self.regions_list]
 
         valid_text_regions_list = []
         for i, regions in enumerate(self.regions_list):
             valid_text_regions = []
-            text_regions = [region for region in regions["TextRegion"] if region.region_type == region_type]
+            text_regions = [region for region in regions["TextRegion"] if region.region_type in region_types]
             image_regions = self.image_regions_list[i]
             if not image_regions:
                 valid_text_regions_list.append(text_regions)
@@ -234,10 +240,10 @@ class RegionGroundTruthGenerator(GroundTruthGenerator):
         return self.get_heading_regions_list('heading', heading_region_types)
 
     def get_caption_text_regions(self):
-        return self.get_valid_text_regions(region_type=page_constants.TextRegionTypes.sCAPTION)
+        return self.get_valid_text_regions(region_types=[page_constants.TextRegionTypes.sCAPTION])
 
     def get_heading_regions_list(self, custom_structure_type, custom_structure_subtypes):
-        valid_text_regions = self.get_valid_text_regions(region_type=page_constants.TextRegionTypes.sHEADING)
+        valid_text_regions = self.get_valid_text_regions(region_types=[page_constants.TextRegionTypes.sHEADING])
 
         region_list_by_type = []
         if len(valid_text_regions) == 0:
