@@ -2,8 +2,7 @@ import json
 import os
 import argparse
 import logging
-# from citlab_python_util.parser.xml.page.page import Page
-from citlab_article_separation.ground_truth_generators.page import Page
+from citlab_python_util.parser.xml.page.page import Page
 
 
 def generate_finetuning_json(page_paths, json_path):
