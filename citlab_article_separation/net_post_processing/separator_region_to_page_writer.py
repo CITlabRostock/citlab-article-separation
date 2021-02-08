@@ -315,33 +315,48 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
         text_lines = self.page_object.get_textlines()
 
         # For now we are only interested in the SeparatorRegion information
-        separator_polygons = self.region_dict[sSEPARATORREGION]
-        for separator_polygon in separator_polygons:
-            # use_separator = _split_regions(page_regions, separator_polygon)
-            text_lines, use_separator = _split_text_lines(text_lines, separator_polygon)
-            if use_separator is not True:
+        for separator_type in [sSEPARATORREGION, sSEPARATORREGION + "_horizontal", sSEPARATORREGION + "_vertical"]:
+            try:
+                separator_polygons = self.region_dict[separator_type]
+            except KeyError:
                 continue
+            for separator_polygon in separator_polygons:
+                # use_separator = _split_regions(page_regions, separator_polygon)
+                if separator_type == sSEPARATORREGION + "_vertical":
+                    text_lines, use_separator = _split_text_lines(text_lines, separator_polygon)
 
-            if remove_holes and len(separator_polygon) > 1:
-                separator_polygon_ext = separator_polygon[0]
-                separator_polygon_int = separator_polygon[1:]
-                separator_polygon_int = [int_poly for int_poly in separator_polygon_int
-                                         if geometry.Polygon(int_poly).area > 1000]
-                separator_polygon_sh = geometry.Polygon(separator_polygon_ext, separator_polygon_int).buffer(0)
+                    if use_separator is not True:
+                        continue
 
-                separator_polygon_parts_sh = self.convert_polygon_with_holes(separator_polygon_sh)
-                separator_polygon_parts = [list(sep_part.exterior.coords) for sep_part in separator_polygon_parts_sh]
-                # separator_polygon = list(separator_polygon_sh.exterior.coords)
+                if remove_holes and len(separator_polygon) > 1:
+                    separator_polygon_ext = separator_polygon[0]
+                    separator_polygon_int = separator_polygon[1:]
+                    separator_polygon_int = [int_poly for int_poly in separator_polygon_int
+                                             if geometry.Polygon(int_poly).area > 1000]
+                    separator_polygon_sh = geometry.Polygon(separator_polygon_ext, separator_polygon_int).buffer(0)
 
-                for separator_polygon_part in separator_polygon_parts:
+                    separator_polygon_parts_sh = self.convert_polygon_with_holes(separator_polygon_sh)
+                    separator_polygon_parts = [list(sep_part.exterior.coords) for sep_part in separator_polygon_parts_sh]
+                    # separator_polygon = list(separator_polygon_sh.exterior.coords)
+
+                    for separator_polygon_part in separator_polygon_parts:
+                        separator_id = self.page_object.get_unique_id(sSEPARATORREGION)
+
+                        custom_tag_dict = None
+                        if separator_type != sSEPARATORREGION:
+                            custom_tag_dict = {"structure": {"orientation": separator_type.lstrip(sSEPARATORREGION + "_")}}
+                        separator_region = SeparatorRegion(separator_id, points=separator_polygon_part,
+                                                           custom=custom_tag_dict)
+                        self.page_object.add_region(separator_region)
+
+                else:
+                    # Ignore the inner polygons and only write the outer ones
+                    separator_polygon = separator_polygon[0]
                     separator_id = self.page_object.get_unique_id(sSEPARATORREGION)
-                    separator_region = SeparatorRegion(separator_id, points=separator_polygon_part)
-                    self.page_object.add_region(separator_region)
 
-            else:
-                # Ignore the inner polygons and only write the outer ones
-                separator_polygon = separator_polygon[0]
-                separator_id = self.page_object.get_unique_id(sSEPARATORREGION)
-                separator_region = SeparatorRegion(separator_id, points=separator_polygon)
-                self.page_object.add_region(separator_region)
+                    custom_tag_dict = None
+                    if separator_type != sSEPARATORREGION:
+                        custom_tag_dict = {"structure": {"orientation": separator_type.lstrip(sSEPARATORREGION + "_")}}
+                    separator_region = SeparatorRegion(separator_id, points=separator_polygon, custom=custom_tag_dict)
+                    self.page_object.add_region(separator_region)
 

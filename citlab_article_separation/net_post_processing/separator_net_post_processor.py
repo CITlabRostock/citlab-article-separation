@@ -1,11 +1,21 @@
 import argparse
 
+import numpy as np
+import cv2
+from citlab_python_util.io.file_loader import get_page_path
+from scipy.ndimage.interpolation import rotate
+from PIL import Image
+
+from citlab_article_separation.net_post_processing.net_post_processing_helper import load_and_scale_image, \
+    get_net_output, apply_threshold
+
 from citlab_article_separation.net_post_processing.region_net_post_processor_base import RegionNetPostProcessor
 from citlab_article_separation.net_post_processing.separator_region_to_page_writer import SeparatorRegionToPageWriter
 from citlab_python_util.logging import custom_logging
 from citlab_python_util.parser.xml.page.page_constants import sSEPARATORREGION
 
 logger = custom_logging.setup_custom_logger("SeparatorNetPostProcessor", level="info")
+
 
 class SeparatorNetPostProcessor(RegionNetPostProcessor):
 
@@ -20,12 +30,72 @@ class SeparatorNetPostProcessor(RegionNetPostProcessor):
         """
         # Ignore the other class
         net_output = net_output[:, :, 0]
+        net_output_height, net_output_width = net_output.shape
+
         # Delete connected components that have a size of less than 100 pixels
         net_output_post = self.apply_cc_analysis(net_output, 1 / net_output.size * 100)
 
-        return net_output_post
+        # # Uncomment if you want to rotate the image first - attention: this slows down the process by ~1s per image
+        # max_h = 0
+        # max_v = 0
+        # rotation_angle_v = 0
+        # rotation_angle_h = 0
+        # # Check for small rotations from -2 to 2 degrees in steps of 0.2
+        # for angle in range(-2, 3, 1):
+        #     # angle *= 0.1
+        #     # rotate image, here we don't care about dimensions yet
+        #     rotated_image = rotate(net_output_post, angle=angle)
+        #     horizontal_projection = np.sum(rotated_image, axis=1)
+        #     vertical_projection = np.sum(rotated_image, axis=0)
+        #
+        #     if max_h < np.max(horizontal_projection):
+        #         max_h = np.max(horizontal_projection)
+        #         rotation_angle_h = angle
+        #     if max_v < np.max(vertical_projection):
+        #         max_v = np.max(vertical_projection)
+        #         rotation_angle_v = angle
+        #
+        # # if the rotation angle of the vertical and horizontal projection differ too much don't rotate
+        # rotation_angle = 0
+        # if abs(rotation_angle_v - rotation_angle_h) <= 1:
+        #     rotation_angle = (rotation_angle_v + rotation_angle_h)/2
+        #
+        # # rotate image
+        # if int(rotation_angle) != 0:
+        #     net_output_post_pil: Image.Image = Image.fromarray(net_output_post)
+        #     net_output_post_pil.rotate(rotation_angle, expand=True)
+        #     net_output_post = np.array(net_output_post_pil, dtype=np.uint8)
 
-    def to_polygons(self, net_output):
+        # Extract all horizontal separators
+        horizontal_min_width = int(15 * net_output_width / 1000)
+        horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (horizontal_min_width, 1))
+        horizontal_mask = cv2.morphologyEx(net_output_post, cv2.MORPH_OPEN, horizontal_kernel, iterations=1)
+
+        # Extract all vertical separators
+        vertical_min_height = int(30 * net_output_height / 1500)
+        vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, vertical_min_height))
+        vertical_mask = cv2.morphologyEx(net_output_post, cv2.MORPH_OPEN, vertical_kernel, iterations=1)
+
+        # Subtract the vertical_mask from the horizontal_mask in a final step
+        # With this step we make sure that there are no overlapping separators in the PAGE file in the end.
+        horizontal_mask = cv2.subtract(horizontal_mask, vertical_mask)
+
+        # Remove created noise
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (int(10 * net_output_width / 1000), 1))
+        horizontal_mask = cv2.morphologyEx(horizontal_mask, cv2.MORPH_OPEN, kernel)
+
+        # # Rotate the images back - uncomment if you used rotation at the top
+        # horizontal_mask_pil = Image.fromarray(horizontal_mask)
+        # horizontal_mask_pil.rotate(-rotation_angle, expand=True)
+        # horizontal_mask = np.array(horizontal_mask_pil, dtype=np.uint8)
+        #
+        # vertical_mask_pil = Image.fromarray(vertical_mask)
+        # vertical_mask_pil.rotate(-rotation_angle, expand=True)
+        # vertical_mask = np.array(vertical_mask_pil, dtype=np.uint8)
+
+        return {"horizontal": horizontal_mask, "vertical": vertical_mask}
+
+    def to_polygons(self, net_output, separator_type=None):
         """
         Converts the (post-processed) net output `net_output` to a list of polygons via contour detection and removal of
         unnecessary points.
@@ -38,7 +108,10 @@ class SeparatorNetPostProcessor(RegionNetPostProcessor):
         # contours = [self.remove_every_nth_point(contour, n=2, min_num_points=20, iterations=2) for contour in
         #             contours]
 
-        return {sSEPARATORREGION: contours}
+        if separator_type is None:
+            return {sSEPARATORREGION: contours}
+        else:
+            return {sSEPARATORREGION + "_" + separator_type: contours}
 
     def to_page_xml(self, page_path, image_path=None, polygons_dict=None, *args, **kwargs):
         """
@@ -59,6 +132,26 @@ class SeparatorNetPostProcessor(RegionNetPostProcessor):
 
         return region_page_writer.page_object
 
+    def run(self):
+        for image_path in self.image_paths:
+            image, image_grey, sc = load_and_scale_image(image_path, self.fixed_height, self.scaling_factor)
+            self.images.append(image)
+
+            # net_output has shape HWC
+            net_output = get_net_output(image_grey, self.pb_graph, gpu_device=self.gpu_devices)
+            net_output = np.array(net_output * 255, dtype=np.uint8)
+            self.net_outputs.append(net_output)
+            net_output = apply_threshold(net_output, self.threshold)
+
+            net_output_post_dict = self.post_process(net_output)
+
+            polygons_dict = {}
+            for separator_type, net_output_post in net_output_post_dict.items():
+                # keys are "SeparatorRegion", "SeparatorRegion_horizontal" or "SeparatorRegion_vertical"
+                polygons_dict.update(self.to_polygons(net_output_post, separator_type))
+            polygons_dict = self.rescale_polygons(polygons_dict, scaling_factor=1 / sc)
+            page_object = self.to_page_xml(get_page_path(image_path), image_path=image_path,
+                                           polygons_dict=polygons_dict)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
