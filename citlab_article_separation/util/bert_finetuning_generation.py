@@ -9,7 +9,8 @@ def generate_finetuning_json(page_paths, json_path):
     xml_files = [line.rstrip('\n') for line in open(page_paths, "r")]
     json_dict = {"page": []}
 
-    num_errors = 0
+    region_skips = 0
+    page_skips = 0
     for xml_file in xml_files:
         # load the page xml files
         page_file = Page(xml_file)
@@ -30,7 +31,8 @@ def generate_finetuning_json(page_paths, json_path):
                 id_list.append(id)
 
             if len(set(id_list)) > 1:
-                # num_errors += 1
+                # TODO: handle instead of skip
+                region_skips += 1
                 logging.warning(f"Textregion {txt_region.id} contains more than 1 article ID: {set(id_list)}. "
                                 f"Skipping textregion.")
                 continue
@@ -39,7 +41,8 @@ def generate_finetuning_json(page_paths, json_path):
                 try:
                     article_id = id_list[0]
                 except IndexError as ex:
-                    num_errors += 1
+                    # TODO: Handle this
+                    page_skips += 1
                     logging.warning(f"Error indexing article IDs for textregion {txt_region.id}. {ex}. Skipping page.")
                     break
                 if article_id not in article_id_txt_region_id_dict:
@@ -70,7 +73,8 @@ def generate_finetuning_json(page_paths, json_path):
     with open(json_path, "w") as outfile:
         outfile.write(json_object)
         logging.info(f"Dumped json {json_path}")
-    logging.info(f"Number of errors = {num_errors}")
+    logging.info(f"Number of region skips = {region_skips}")
+    logging.info(f"Number of page skips = {page_skips}")
 
 
 if __name__ == '__main__':
