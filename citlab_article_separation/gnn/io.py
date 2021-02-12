@@ -135,6 +135,7 @@ def save_clustering_to_page(clustering, page_path, save_dir, info=""):
 
     # Write pagexml
     page.set_textline_attr(textlines)
+    page_path = os.path.relpath(page_path)
     save_name = re.sub(r'\.xml$', '_clustering.xml', os.path.basename(page_path))
     page_dir = re.sub(r'page$', 'clustering', os.path.dirname(page_path))
     if info:
@@ -226,7 +227,7 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
 
     # Draw nodes
     graph_views = dict()
-    node_collection = nx.draw_networkx_nodes(graph, positions, ax=axes[0], node_color=node_colors, node_size=50, **kwds)
+    node_collection = nx.draw_networkx_nodes(graph, positions, ax=axes[0], node_color=node_colors, node_size=50)
     node_collection.set_zorder(3)
     graph_views['nodes'] = [node_collection]
     # Draw edges
@@ -249,13 +250,14 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
             cax.axis("off")
     # Draw labels
     if with_labels:
-        label_collection = nx.draw_networkx_labels(graph, positions, ax=axes[0], font_size=5, **kwds)
+        label_collection = nx.draw_networkx_labels(graph, positions, ax=axes[0], font_size=5)
         graph_views['labels'] = [label_collection]
     plt.connect('key_press_event', lambda event: toggle_graph_view(event, graph_views))
     # Draw page underneath
     plot_util.plot_pagexml(original_page, img_path, ax=axes[0], plot_article=True, plot_legend=False)
 
     # Save image
+    page_path = os.path.relpath(page_path)
     save_name = re.sub(r'\.xml$', f'_clustering_debug.jpg', os.path.basename(page_path))
     page_dir = os.path.dirname(page_path)
     if info:
