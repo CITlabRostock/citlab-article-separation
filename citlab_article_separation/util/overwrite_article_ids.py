@@ -195,7 +195,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--in_list', help="Input list with paths to pagexml files", required=True)
     parser.add_argument('--gt_list', help="GT list with paths to corresponding pagexml files", required=True)
-    parser.add_argument('--by_regions', type=bool, default=True, help="Overwrite article IDs by region or by lines")
+    parser.add_argument('--by_region', type=bool, default=True,
+                        help="Overwrite article IDs by region or by lines (default: True)", metavar="BOOL",)
     args = parser.parse_args()
 
     if args.by_region is True:
