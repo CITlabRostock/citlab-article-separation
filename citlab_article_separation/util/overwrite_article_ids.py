@@ -192,6 +192,7 @@ def overwrite_article_ids_by_region(page_list, gt_list):
 
 
 if __name__ == '__main__':
+    logging.getLogger().setLevel(logging.INFO)
     parser = argparse.ArgumentParser()
     parser.add_argument('--in_list', help="Input list with paths to pagexml files", required=True)
     parser.add_argument('--gt_list', help="GT list with paths to corresponding pagexml files", required=True)
