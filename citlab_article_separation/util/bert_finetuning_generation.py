@@ -2,6 +2,7 @@ import json
 import os
 import argparse
 import logging
+import numpy as np
 from citlab_python_util.parser.xml.page.page import Page
 
 
@@ -18,52 +19,46 @@ def generate_finetuning_json(page_paths, json_path):
         logging.info(f"Processing {xml_file}")
 
         # load text regions
-        list_of_txt_regions = page_file.get_text_regions()
+        list_of_text_regions = page_file.get_text_regions()
 
-        article_id_txt_region_id_dict = {}
-        txt_region_id_txt_lines_dict = {}
+        article_id_text_region_id_dict = {}
+        text_region_id_text_lines_dict = {}
 
-        for txt_region in list_of_txt_regions:
-            id_list = []
-
-            for txt_line in txt_region.text_lines:
-                id = txt_line.get_article_id()
-                id_list.append(id)
-
-            if len(set(id_list)) > 1:
-                # TODO: handle instead of skip
-                region_skips += 1
-                logging.warning(f"Textregion {txt_region.id} contains more than 1 article ID: {set(id_list)}. "
-                                f"Skipping textregion.")
+        for text_region in list_of_text_regions:
+            text_region_article_ids = []
+            for text_line in text_region.text_lines:
+                if text_line.get_article_id() is not None:
+                    text_region_article_ids.append(text_line.get_article_id())
+            if not text_region_article_ids:
+                logging.warning(f"{xml_file} - {text_region.id} - contains no article_IDs. Skipping.")
                 continue
+            values, counts = np.unique(text_region_article_ids, return_counts=True)
+            index = np.argmax(counts)
+            if len(values) > 1:
+                logging.warning(f"{xml_file} - {text_region.id} - contains multiple article IDs "
+                                f"({set(text_region_article_ids)}). Choosing maximum occurence ({values[index]}).")
+
+            # article id of the text region
+            article_id = values[index]
+            if article_id not in article_id_text_region_id_dict:
+                article_id_text_region_id_dict.update({article_id: [text_region.id]})
             else:
-                # article id of the text region
-                try:
-                    article_id = id_list[0]
-                except IndexError as ex:
-                    # TODO: Handle this
-                    page_skips += 1
-                    logging.warning(f"Error indexing article IDs for textregion {txt_region.id}. {ex}. Skipping page.")
-                    break
-                if article_id not in article_id_txt_region_id_dict:
-                    article_id_txt_region_id_dict.update({article_id: [txt_region.id]})
-                else:
-                    article_id_txt_region_id_dict[article_id].append(txt_region.id)
-                txt_region_id_txt_lines_dict.update({txt_region.id: txt_region.text_lines})
+                article_id_text_region_id_dict[article_id].append(text_region.id)
+            text_region_id_text_lines_dict.update({text_region.id: text_region.text_lines})
 
         article_list_of_dicts = []
-        for article_id in article_id_txt_region_id_dict:
-            txt_region_list_of_dicts = []
+        for article_id in article_id_text_region_id_dict:
+            text_region_list_of_dicts = []
 
-            for txt_region_id in article_id_txt_region_id_dict[article_id]:
-                txt_region_txt = ""
+            for text_region_id in article_id_text_region_id_dict[article_id]:
+                text_region_txt = ""
 
-                for line in txt_region_id_txt_lines_dict[txt_region_id]:
-                    txt_region_txt += line.text + "\n"
+                for line in text_region_id_text_lines_dict[text_region_id]:
+                    text_region_txt += line.text + "\n"
 
-                txt_region_list_of_dicts.append({"text_block_id": txt_region_id, "text": txt_region_txt})
+                text_region_list_of_dicts.append({"text_block_id": text_region_id, "text": text_region_txt})
 
-            article_list_of_dicts.append({"article_id": article_id, "text_blocks": txt_region_list_of_dicts})
+            article_list_of_dicts.append({"article_id": article_id, "text_blocks": text_region_list_of_dicts})
 
         json_dict["page"].append({"page_file": page_name, "articles": article_list_of_dicts})
 
