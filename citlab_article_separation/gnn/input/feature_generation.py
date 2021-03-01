@@ -393,16 +393,16 @@ def discard_text_regions_and_lines(text_regions, text_lines=None):
 
 
 def build_input_and_target_bc(page_path,
-                              external_data=(),
                               interaction='delaunay',
                               visual_regions=False,
+                              external_data=None,
                               sim_feat_extractor=None):
     """ Computation of the input and target values to solve the AS problem with a graph neural network on BC level.
 
     :param page_path: path to page_xml
-    :param external_data: list of additonal feature dicts from external json sources
     :param interaction: interacting_nodes setup
     :param visual_regions: optionally build visual regions for nodes and edges (used for visual feature extraction)
+    :param external_data: list of additonal feature dicts from external json sources
     :param sim_feat_extractor: feature extractor used for text block similarities
     :return: 'num_nodes', 'interacting_nodes', 'num_interacting_nodes' ,'node_features', 'edge_features',
      'gt_relations', 'gt_num_relations'
@@ -452,17 +452,18 @@ def build_input_and_target_bc(page_path,
         # heading feature (1-dim)
         node_feature.extend(get_text_region_heading_feature(text_region))
         # external features
-        for ext in external_data:
-            try:
-                ext_page = ext[os.path.basename(page_path)]
-            except KeyError:
-                logging.warning(f'Could not find key {page_path} in external data json.')
-                continue
-            if 'node_features' in ext_page:
+        if external_data:
+            for ext in external_data:
                 try:
-                    node_feature.extend(ext['node_features'][text_region.id])
+                    ext_page = ext[os.path.basename(page_path)]
                 except KeyError:
-                    node_feature.extend([ext['node_features']['default']])
+                    logging.warning(f'Could not find key {page_path} in external data json.')
+                    continue
+                if 'node_features' in ext_page:
+                    try:
+                        node_feature.extend(ext['node_features'][text_region.id])
+                    except KeyError:
+                        node_feature.extend([ext['node_features']['default']])
         # final node feature vector
         node_features.append(node_feature)
 
@@ -625,9 +626,10 @@ def get_data_from_pagexml(path_to_pagexml):
 
 # def generate_input_jsons_bc(page_list, json_list, out_path, num_node_features, num_edge_features,
 #                             interaction, visual_regions):
-def generate_input_jsons_bc(page_list, json_list, out_path,
+def generate_input_jsons_bc(page_list, out_path,
                             interaction="delaunay",
                             visual_regions=True,
+                            json_list=None,
                             tb_similarity_setup=(None, None)):
     # Get page paths
     with open(page_list, "r") as page_files:
@@ -636,9 +638,10 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
 
     # Get json paths
     json_data = []
-    for json_path in json_list:
-        with open(json_path, "r") as json_file:
-            json_data.append(json.load(json_file))
+    if json_list:
+        for json_path in json_list:
+            with open(json_path, "r") as json_file:
+                json_data.append(json.load(json_file))
 
     # Setup textblock similarity feature extractor
     sim_feat_extractor = None
@@ -656,9 +659,9 @@ def generate_input_jsons_bc(page_list, json_list, out_path,
         visual_regions_edges, num_points_visual_regions_edges, \
         gt_relations, gt_num_relations = \
             build_input_and_target_bc(page_path=page_path,
-                                      external_data=json_data,
                                       interaction=interaction,
                                       visual_regions=visual_regions,
+                                      external_data=json_data,
                                       sim_feat_extractor=sim_feat_extractor)
 
         # build and write output
@@ -712,8 +715,6 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--pagexml_list', help="Input list with paths to pagexml files", required=True)
-    parser.add_argument('--external_jsons', type=str, default=None, nargs='*',
-                        help="External json files containing additional features")
     parser.add_argument('--out_dir', default="", help="Output directory for the json files")
     # parser.add_argument('--num_node_features', default=4, type=int,
     #                     help="Number of node features to be generated. Choose from ('4', '12', '14', '15', '16').")
@@ -723,6 +724,8 @@ if __name__ == '__main__':
                         help="Determines the interacting nodes setup. Choose from ('fully', 'delaunay').")
     parser.add_argument('--visual_regions', nargs='?', const=True, default=False, type=str2bool,
                         help="Optionally build visual regions for nodes and edges (used for visual feature extraction)")
+    parser.add_argument('--external_jsons', type=str, default=None, nargs='*',
+                        help="External json files containing additional features")
     parser.add_argument('--language', default=None, help="language used in tokenization and stopwords filtering "
                                                          "for text block similarites via word vectors")
     parser.add_argument('--wv_path', default=None, help="path to wordvector embeddings used for text block similarities")
@@ -731,10 +734,10 @@ if __name__ == '__main__':
     # generate_input_jsons_bc(args.pagexml_list, args.external_jsons, args.out_dir, args.num_node_features,
     #                         args.num_edge_features, args.interaction, args.visual_regions)
     generate_input_jsons_bc(args.pagexml_list,
-                            args.external_jsons,
                             args.out_dir,
                             args.interaction,
                             args.visual_regions,
+                            args.external_jsons,
                             (args.language, args.wv_path))
 
     # # page_path = "/home/johannes/devel/data/NewsEye_GT/AS_BC/NewsEye_ONB_232_textblocks/274950/ONB_nfp_18730705_corrected_duplicated/page/ONB_nfp_18730705_010.xml"
