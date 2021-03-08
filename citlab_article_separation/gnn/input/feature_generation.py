@@ -470,12 +470,12 @@ def build_input_and_target_bc(page_path,
                     try:
                         node_feature.extend(ext_page['node_features'][text_region.id])
                     except KeyError:
-                        logging.warning(f"Could not find entry node_features->{text_region.id} in external json. "
+                        logging.debug(f"Could not find entry node_features->{text_region.id} in external json. "
                                         f"Defaulting.")
                         try:
                             node_feature.extend([ext_page['node_features']['default']])
                         except KeyError:
-                            logging.warning(f"Could not find entry node_features->default in external json. Using 0.0.")
+                            logging.debug(f"Could not find entry node_features->default in external json. Using 0.0.")
                             node_feature.extend([0.0])
         # final node feature vector
         node_features.append(node_feature)
@@ -511,12 +511,12 @@ def build_input_and_target_bc(page_path,
             try:
                 edge_feature.extend(tb_sim_dict['edge_features'][text_region_a.id][text_region_b.id])
             except KeyError:
-                logging.warning(f"Could not find entry edge_features->{text_region_a.id}->{text_region_b.id} in "
+                logging.debug(f"Could not find entry edge_features->{text_region_a.id}->{text_region_b.id} in "
                                 f"text block similarity dict. Defaulting.")
                 try:
                     edge_feature.extend(tb_sim_dict['edge_features']['default'])
                 except KeyError:
-                    logging.warning(f"Could not find entry edge_features->default in "
+                    logging.debug(f"Could not find entry edge_features->default in "
                                     f"text block similarity dict. Using 0.5.")
                     edge_feature.extend([0.5])
         # external features
@@ -530,12 +530,12 @@ def build_input_and_target_bc(page_path,
                 try:
                     edge_feature.extend(ext_page['edge_features'][text_region_a.id][text_region_b.id])
                 except (KeyError, TypeError):
-                    logging.warning(f"Could not find entry edge_features->{text_region_a.id}->{text_region_b.id} in "
+                    logging.debug(f"Could not find entry edge_features->{text_region_a.id}->{text_region_b.id} in "
                                     f"external json. Defaulting.")
                     try:
                         edge_feature.extend(ext_page['edge_features']['default'])
                     except KeyError:
-                        logging.warning(f"Could not find entry edge_features->default in external json. Using 0.5.")
+                        logging.debug(f"Could not find entry edge_features->default in external json. Using 0.5.")
                         edge_feature.extend([0.5])
         # final edge feature vector
         edge_features.append(edge_feature)
