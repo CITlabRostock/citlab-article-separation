@@ -215,7 +215,7 @@ class TextblockClustering(object):
         self.tb_classes[cls1] = []
 
         for idx in range(self._mat_dim):
-            if idx != cls0:
+            if idx != cls0 and idx != cls1:
                 self._calcMat[idx, cls0] += self._calcMat[idx, cls1]
                 self._calcMat[cls0, idx] = self._calcMat[idx, cls0]
 
