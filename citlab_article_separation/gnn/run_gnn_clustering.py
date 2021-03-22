@@ -15,6 +15,8 @@ from citlab_article_separation.gnn.clustering.textblock_clustering import Textbl
 from citlab_article_separation.gnn.io import plot_graph_clustering_and_page, save_clustering_to_page, \
     save_conf_to_json, build_thresholded_relation_graph
 from citlab_python_util.io.path_util import *
+from citlab_python_util.parser.xml.page.page import Page
+from citlab_article_separation.gnn.input.feature_generation import discard_text_regions_and_lines as discard_regions
 
 
 # General
@@ -225,10 +227,16 @@ class EvaluateRelation(object):
                                  f"{self._flags.batch_size} samples each.")
                     break
                 try:
+                    page_path = self._page_paths.pop(0)
+                    # skip pages with no more than one TextRegion
+                    page = Page(page_path)
+                    text_regions = page.get_text_regions()
+                    text_regions, _ = discard_regions(text_regions)
+                    if len(text_regions) <= 1:
+                        continue
                     # get one batch (input_dict, target_dict) from generator
                     next_batch = sess.run([self._next_batch])[0]
                     batch_counter += 1
-                    page_path = self._page_paths.pop(0)
                     target = next_batch[1][target_key]
                     targets.append(target)
                     # num_relations_to_consider = next_batch[0]["num_relations_to_consider_belong_to_same_instance"]
