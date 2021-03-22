@@ -63,7 +63,7 @@ flags.define_list('gpu_devices', int, 'INT', 'list of GPU indices to use. ', [])
 flags.define_float('gpu_memory_fraction', 0.95, 'set between 0.1 and 1, value - 0.09 is passed to session_config, to '
                                                 'take overhead in account, smaller val_batch_size may needed, '
                                                 '(default: %(default)s)')
-flags.define_string("debug_dir", "debug_output", "directory to save debug outputs")
+flags.define_string("debug_dir", "", "directory to save debug outputs")
 flags.define_integer("batch_limiter", -1, "set to positiv value to stop validation after this number of batches")
 flags.FLAGS.parse_flags()
 flags.define_boolean("try_gpu", True if flags.FLAGS.gpu_devices != [] else False,
@@ -279,6 +279,15 @@ class EvaluateRelation(object):
                                                            page_path=page_path,
                                                            save_dir=self._flags.out_dir,
                                                            info=self._tb_clustering.get_info(self._flags.clustering_method))
+                    # info = self._tb_clustering.get_info(self._flags.clustering_method)
+                    # save_name = re.sub(r'\.xml$', '_clustering.xml', os.path.basename(os.path.relpath(page_path)))
+                    # page_dir = re.sub(r'page$', 'clustering', os.path.dirname(os.path.relpath(page_path)))
+                    # save_dir = self._flags.out_dir
+                    # if info:
+                    #     save_dir = os.path.join(save_dir, page_dir, info)
+                    # else:
+                    #     save_dir = os.path.join(save_dir, page_dir)
+                    # cluster_path = os.path.join(save_dir, save_name)
 
                     # debug output
                     # TODO: add more debug images for (corrects/falses/targets/predictions etc.)
