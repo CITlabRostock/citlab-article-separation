@@ -135,7 +135,6 @@ def save_clustering_to_page(clustering, page_path, save_dir, info=""):
 
     # Write pagexml
     page.set_textline_attr(textlines)
-    page_path = os.path.relpath(page_path)
     save_name = re.sub(r'\.xml$', '_clustering.xml', os.path.basename(page_path))
     page_dir = re.sub(r'page$', 'clustering', os.path.dirname(page_path))
     if info:
