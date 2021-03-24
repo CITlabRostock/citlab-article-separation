@@ -256,7 +256,6 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
     plot_util.plot_pagexml(original_page, img_path, ax=axes[0], plot_article=True, plot_legend=False)
 
     # Save image
-    page_path = os.path.relpath(page_path)
     save_name = re.sub(r'\.xml$', f'_clustering_debug.jpg', os.path.basename(page_path))
     page_dir = os.path.dirname(page_path)
     if info:
