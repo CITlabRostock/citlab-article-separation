@@ -1,6 +1,8 @@
 from __future__ import print_function, division
 
+import colorsys
 import os
+import random
 from argparse import ArgumentParser
 
 import cv2
@@ -29,13 +31,45 @@ def load_graph(frozen_graph_filename):
     return graph
 
 
-def plot_image_with_net_output(image, net_output):
-    net_output_rgb_int = np.uint8(cv2.cvtColor(net_output, cv2.COLOR_GRAY2BGR))
-    net_output_rgb_int = cv2.cvtColor(net_output_rgb_int, cv2.COLOR_BGR2HLS)
+def random_colors(N, bright=True):
+    """
+    Generate random colors.
+    To get visually distinct colors, generate them in HSV space then
+    convert to RGB.
+    """
+    brightness = 1.0 if bright else 0.7
+    hsv = [(i / N, 1, brightness) for i in range(N)]
+    colors = list(map(lambda c: colorsys.hsv_to_rgb(*c), hsv))
+    random.shuffle(colors)
+    return colors
 
-    res = cv2.addWeighted(image, 0.9, net_output_rgb_int, 0.4, 0)
-    res = cv2.cvtColor(res, cv2.COLOR_BGR2RGB)
-    return res
+
+def apply_mask(image, mask, color, alpha=0.5):
+    """Apply the given mask to the image.
+    """
+    for c in range(3):
+        image[:, :, c] = np.where(mask == 255,
+                                  image[:, :, c] *
+                                  (1 - alpha) + alpha * color[c],
+                                  image[:, :, c])
+    return image
+
+def plot_image_with_net_output(image, net_output):
+    colors = random_colors(10)
+    print(colors)
+    # print(net_output.shape)
+    # net_output_rgb_int = np.uint8(cv2.cvtColor(net_output, cv2.COLOR_GRAY2RGB))
+    # net_output_rgb_int = np.uint8(np.where(net_output_rgb_int == [255, 255, 255], [0, 255, 0], [0, 0, 0]))
+    # print(net_output_rgb_int.shape)
+    # # net_output_rgb_int = np.uint8(cv2.cvtColor(net_output, cv2.COLOR_GRAY2BGR))
+    # # net_output_rgb_int = cv2.cvtColor(net_output_rgb_int, cv2.COLOR_BGR2HLS)
+    #
+    # res = cv2.addWeighted(image, 0.4, net_output_rgb_int, 0.6, 0)
+    # # added_image = cv2.addWeighted(background, 0.4, overlay, 0.1, 0)
+    # # cv2.addWeighted(net_output_rgb_int, 0.25, image, 0.75, 0, image)
+    # # res = cv2.cvtColor(res, cv2.COLOR_BGR2RGB)
+    # # return image
+    return apply_mask(image, net_output, (255, 50, 50), 0.5)
 
 
 def plot_connected_components(image):
@@ -69,7 +103,7 @@ def plot_confidence_histogram(bin_image):
 
 def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0", rescale=None, fixed_height=None,
                     mask_threshold=None, plot_with_gt=False, plot_with_img=False, show_plot=False,
-                    calculate_accuracy=True):
+                    calculate_accuracy=True, figsize=(16, 16), ax=None):
     session_conf = tf.ConfigProto()
     session_conf.gpu_options.visible_device_list = gpu_device
 
@@ -160,7 +194,8 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                         accuracy += compute_accuracy(out_img_2d_argmax[0, :, :, cl], gt_imgs[cl] / 255)
 
                     if plot_with_img:
-                        out_img_2d_255 = plot_image_with_net_output(img, out_img_2d_255)
+                        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                        out_img_2d_255 = plot_image_with_net_output(img.astype(np.uint32), out_img_2d_255)
                     if plot_with_gt:
                         gt_img = gt_imgs[cl]
                         if plot_with_img:
@@ -168,10 +203,18 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                         out_img_2d_255 = np.concatenate((out_img_2d_255, gt_img), axis=1)
                     if save_folder:
                         cv2.imwrite(
-                            os.path.join(save_folder, img_name + "_OUT" + str(cl) + ext), out_img_2d_255)
+                            os.path.join(save_folder, img_name + "_OUT" + str(cl) + ext), cv2.cvtColor(np.uint8(out_img_2d_255), cv2.COLOR_RGB2BGR))
                     if show_plot:
                         if plot_with_img:
-                            plt.imshow(out_img_2d_255)
+                            _, ax = plt.subplots(1, figsize=figsize)
+
+                            # Show area outside image boundaries.
+                            height, width = img.shape[:2]
+                            ax.set_ylim(height + 10, -10)
+                            ax.set_xlim(-10, width + 10)
+                            ax.axis('off')
+
+                            ax.imshow(out_img_2d_255.astype(np.uint8))
                         else:
                             plt.imshow(out_img_2d_255, cmap="gray")
                         # img_gray_2d = img_gray[0, :, :, 0]
@@ -211,6 +254,7 @@ if __name__ == '__main__':
 
     path_to_tf_graph = args.path_to_tf_graph
     path_to_img_lst = args.path_to_img_lst
+    save_folder = args.save_folder
 
     path_to_tf_graph = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/newseye/" \
                        "racetrack_onb_textblock_136/TB_aru_1250_height/export/TB_aru_1250_height_2020-05-16.pb"
@@ -248,6 +292,6 @@ if __name__ == '__main__':
     # path_to_tf_graph = "/home/max/devel/projects/python/aip_pixlab/models/textblock_detection/independance_lux/" \
     #                    "headers/tb_headers_aru/export/tb_headers_aru_2020-06-04.pb"
 
-    plot_net_output(path_to_tf_graph, path_to_img_lst, args.save_folder, rescale=args.rescale_factor,
-                    fixed_height=args.fixed_height, plot_with_gt=False, plot_with_img=True,
-                    mask_threshold=False, show_plot=True, calculate_accuracy=args.calculate_accuracy)
+    plot_net_output(path_to_tf_graph, path_to_img_lst, save_folder, rescale=args.rescale_factor,
+                    fixed_height=1500, plot_with_gt=False, plot_with_img=True,
+                    mask_threshold=True, show_plot=True, calculate_accuracy=False)
