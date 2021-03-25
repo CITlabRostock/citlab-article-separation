@@ -15,6 +15,8 @@ from citlab_article_separation.gnn.clustering.textblock_clustering import Textbl
 from citlab_article_separation.gnn.io import plot_graph_clustering_and_page, save_clustering_to_page, \
     save_conf_to_json, build_thresholded_relation_graph
 from citlab_python_util.io.path_util import *
+from citlab_python_util.parser.xml.page.page import Page
+from citlab_article_separation.gnn.input.feature_generation import discard_text_regions_and_lines as discard_regions
 
 
 # General
@@ -63,7 +65,7 @@ flags.define_list('gpu_devices', int, 'INT', 'list of GPU indices to use. ', [])
 flags.define_float('gpu_memory_fraction', 0.95, 'set between 0.1 and 1, value - 0.09 is passed to session_config, to '
                                                 'take overhead in account, smaller val_batch_size may needed, '
                                                 '(default: %(default)s)')
-flags.define_string("debug_dir", "debug_output", "directory to save debug outputs")
+flags.define_string("debug_dir", "", "directory to save debug outputs")
 flags.define_integer("batch_limiter", -1, "set to positiv value to stop validation after this number of batches")
 flags.FLAGS.parse_flags()
 flags.define_boolean("try_gpu", True if flags.FLAGS.gpu_devices != [] else False,
@@ -225,10 +227,16 @@ class EvaluateRelation(object):
                                  f"{self._flags.batch_size} samples each.")
                     break
                 try:
+                    page_path = self._page_paths.pop(0)
+                    # skip pages with no more than one TextRegion
+                    page = Page(page_path)
+                    text_regions = page.get_text_regions()
+                    text_regions, _ = discard_regions(text_regions)
+                    if len(text_regions) <= 1:
+                        continue
                     # get one batch (input_dict, target_dict) from generator
                     next_batch = sess.run([self._next_batch])[0]
                     batch_counter += 1
-                    page_path = self._page_paths.pop(0)
                     target = next_batch[1][target_key]
                     targets.append(target)
                     # num_relations_to_consider = next_batch[0]["num_relations_to_consider_belong_to_same_instance"]
@@ -279,6 +287,15 @@ class EvaluateRelation(object):
                                                            page_path=page_path,
                                                            save_dir=self._flags.out_dir,
                                                            info=self._tb_clustering.get_info(self._flags.clustering_method))
+                    # info = self._tb_clustering.get_info(self._flags.clustering_method)
+                    # save_name = re.sub(r'\.xml$', '_clustering.xml', os.path.basename(os.path.relpath(page_path)))
+                    # page_dir = re.sub(r'page$', 'clustering', os.path.dirname(os.path.relpath(page_path)))
+                    # save_dir = self._flags.out_dir
+                    # if info:
+                    #     save_dir = os.path.join(save_dir, page_dir, info)
+                    # else:
+                    #     save_dir = os.path.join(save_dir, page_dir)
+                    # cluster_path = os.path.join(save_dir, save_name)
 
                     # debug output
                     # TODO: add more debug images for (corrects/falses/targets/predictions etc.)

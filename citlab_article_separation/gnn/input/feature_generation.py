@@ -259,10 +259,18 @@ def get_edge_separator_feature(text_region_a, text_region_b, seperator_regions):
                 line_in_bounding_box(tr_segment, min_x_s, max_x_s, min_y_s, max_y_s):
             # check for intersections between text_region_line and surrounding polygon
             if line_poly_intersection(tr_segment, separator_region.points.points_list):
-                if ratio < 5:
+                sep_orientation = separator_region.get_orientation()
+                if sep_orientation == 'horizontal':
                     horizontally_separated = True
-                else:
+                elif separator_region == 'vertical':
                     vertically_separated = True
+                # ratio check
+                else:
+                    logging.debug(f"No custom orientation tag found for separator region. Defaulting to ratio check.")
+                    if ratio < 5:
+                        horizontally_separated = True
+                    else:
+                        vertically_separated = True
                 if horizontally_separated and vertically_separated:
                     break
     separator_feature = [float(horizontally_separated), float(vertically_separated)]
@@ -427,15 +435,14 @@ def build_input_and_target_bc(page_path,
         logging.warning(f'Less than two nodes found in {page_path}. Returning None.')
         return None, None, None, None, None, None, None, None, None, None, None
 
-    # node features
-    node_features = []
-    norm_x, norm_y = float(resolution[0]), float(resolution[1])
-
     # pre-compute stroke width and height over textlines (and their maximum value for normalization)
     textline_stroke_widths, textline_heights = get_textline_stroke_widths_heights_dist_trafo(page_path, text_lines)
     sw_max = np.max(list(textline_stroke_widths.values()))
     th_max = np.max(list(textline_heights.values()))
 
+    # node features
+    node_features = []
+    norm_x, norm_y = float(resolution[0]), float(resolution[1])
     # compute region features
     for text_region in text_regions:
         node_feature = []
@@ -457,13 +464,19 @@ def build_input_and_target_bc(page_path,
                 try:
                     ext_page = ext[os.path.basename(page_path)]
                 except KeyError:
-                    logging.warning(f'Could not find key {page_path} in external data json.')
+                    logging.warning(f'Could not find key {os.path.basename(page_path)} in external data json.')
                     continue
                 if 'node_features' in ext_page:
                     try:
-                        node_feature.extend(ext['node_features'][text_region.id])
+                        node_feature.extend(ext_page['node_features'][text_region.id])
                     except KeyError:
-                        node_feature.extend([ext['node_features']['default']])
+                        logging.debug(f"Could not find entry node_features->{text_region.id} in external json. "
+                                        f"Defaulting.")
+                        try:
+                            node_feature.extend([ext_page['node_features']['default']])
+                        except KeyError:
+                            logging.debug(f"Could not find entry node_features->default in external json. Using 0.0.")
+                            node_feature.extend([0.0])
         # final node feature vector
         node_features.append(node_feature)
 
@@ -476,15 +489,14 @@ def build_input_and_target_bc(page_path,
     # number of interacting nodes
     num_interacting_nodes = interacting_nodes.shape[0]
 
-    # edge features for each pair of interacting nodes
-    edge_features = []
-
     # pre-compute text block similarities with word vectors
     tb_sim_dict = get_tb_similarities(text_regions, sim_feat_extractor) if sim_feat_extractor is not None else None
 
     # regions for separator features
     separator_regions = regions['SeparatorRegion'] if 'SeparatorRegion' in regions else None
 
+    # edge features for each pair of interacting nodes
+    edge_features = []
     for i in range(num_interacting_nodes):
         edge_feature = []
         node_a, node_b = interacting_nodes[i, 0], interacting_nodes[i, 1]
@@ -499,21 +511,31 @@ def build_input_and_target_bc(page_path,
             try:
                 edge_feature.extend(tb_sim_dict['edge_features'][text_region_a.id][text_region_b.id])
             except KeyError:
-                edge_feature.extend(tb_sim_dict['edge_features']['default'])
+                logging.debug(f"Could not find entry edge_features->{text_region_a.id}->{text_region_b.id} in "
+                                f"text block similarity dict. Defaulting.")
+                try:
+                    edge_feature.extend(tb_sim_dict['edge_features']['default'])
+                except KeyError:
+                    logging.debug(f"Could not find entry edge_features->default in "
+                                    f"text block similarity dict. Using 0.5.")
+                    edge_feature.extend([0.5])
         # external features
         for ext in external_data:
             try:
                 ext_page = ext[os.path.basename(page_path)]
             except KeyError:
-                logging.warning(f'Could not find key {page_path} in external data json.')
+                logging.warning(f'Could not find key {os.path.basename(page_path)} in external data json. Skipping.')
                 continue
             if 'edge_features' in ext_page:
                 try:
-                    edge_feature.extend(ext['edge_features'][text_region_a.id][text_region_b.id])
+                    edge_feature.extend(ext_page['edge_features'][text_region_a.id][text_region_b.id])
                 except (KeyError, TypeError):
+                    logging.debug(f"Could not find entry edge_features->{text_region_a.id}->{text_region_b.id} in "
+                                    f"external json. Defaulting.")
                     try:
-                        edge_feature.extend(ext['edge_features']['default'])
+                        edge_feature.extend(ext_page['edge_features']['default'])
                     except KeyError:
+                        logging.debug(f"Could not find entry edge_features->default in external json. Using 0.5.")
                         edge_feature.extend([0.5])
         # final edge feature vector
         edge_features.append(edge_feature)
@@ -731,6 +753,14 @@ if __name__ == '__main__':
     parser.add_argument('--wv_path', default=None, help="path to wordvector embeddings used for text block similarities")
     args = parser.parse_args()
 
+    logging.info("Feature generation setup:")
+    logging.info(f"  -pagexml_list: {args.pagexml_list}")
+    logging.info(f"  -out_dir: {args.out_dir}")
+    logging.info(f"  -interaction: {args.interaction}")
+    logging.info(f"  -visual_regions: {args.visual_regions}")
+    logging.info(f"  -external_jsons: {args.external_jsons}")
+    logging.info(f"  -language: {args.language}")
+    logging.info(f"  -wv_path: {args.wv_path}")
     # generate_input_jsons_bc(args.pagexml_list, args.external_jsons, args.out_dir, args.num_node_features,
     #                         args.num_edge_features, args.interaction, args.visual_regions)
     generate_input_jsons_bc(args.pagexml_list,

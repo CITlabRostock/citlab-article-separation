@@ -267,7 +267,7 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
     save_path = os.path.join(save_dir, save_name)
-    plt.savefig(save_path, bbox_inches='tight', pad_inches=0, dpi=1000)
+    plt.savefig(save_path, bbox_inches='tight', pad_inches=0, dpi=300)
     logging.info(f"Saved debug image '{save_path}'")
     plt.close(plt.gcf())
 

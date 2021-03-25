@@ -77,7 +77,7 @@ class InputGNN(object):
     def _process_dataset(self, dataset):
         dataset = dataset.map(lambda file: self._map_element(file),
                               num_parallel_calls=self.input_params['num_parallel_load'])
-        # dataset = dataset.apply(tf.data.experimental.ignore_errors())
+        dataset = dataset.apply(tf.data.experimental.ignore_errors())
 
         # input dict and padding
         input_dict_shape = {'num_nodes': [],
