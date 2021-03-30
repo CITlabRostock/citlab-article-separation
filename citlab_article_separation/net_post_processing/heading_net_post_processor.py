@@ -1,5 +1,5 @@
 import argparse
-gfrom collections import Counter
+from collections import Counter
 
 import numpy as np
 
