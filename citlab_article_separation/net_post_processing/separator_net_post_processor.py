@@ -155,22 +155,22 @@ class SeparatorNetPostProcessor(RegionNetPostProcessor):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--image_list', type=str, required=True,
+    parser.add_argument('--image_list', type=str, required=False,
                         help="Path to the image list for which separator information should be created.")
-    parser.add_argument('--path_to_pb', type=str, required=True,
+    parser.add_argument('--path_to_pb', type=str, required=False,
                         help="Path to the TensorFlow pb graph for creating the separator information")
     parser.add_argument('--fixed_height', type=int, required=False,
                         help="If parameter is given, the images will be scaled to this height by keeping the aspect "
-                             "ratio", default=None)
+                             "ratio", default=1500)
     parser.add_argument('--scaling_factor', type=float, required=False,
                         help="If no --fixed_height flag is given, use a predefined scaling factor on the images.",
                         default=1.0)
     parser.add_argument('--threshold', type=float, required=False,
                         help="Threshold value that is used to convert the probability outputs of the neural network"
-                             "to 0 and 1 values", default=0.5)
+                             "to 0 and 1 values", default=0.05)
     parser.add_argument('--gpu_devices', type=str, required=False,
                         help='Which GPU devices to use, comma-separated integers. E.g. "0,1,2".',
-                        default='0')
+                        default='')
 
     args = parser.parse_args()
 

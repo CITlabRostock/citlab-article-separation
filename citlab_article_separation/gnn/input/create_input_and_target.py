@@ -12,9 +12,9 @@ def get_input_and_target_from_xml(path_to_xml, provide_relations_to_consider, ex
     visual_regions_edges, num_points_visual_regions_edges, \
     gt_relations, gt_num_relations = \
         build_input_and_target_bc(page_path=path_to_xml,
-                                  external_data=external_data,
                                   interaction=interaction,
-                                  visual_regions=visual_regions)
+                                  visual_regions=visual_regions,
+                                  external_data=external_data)
 
     # build output dict
     return_dict = dict()

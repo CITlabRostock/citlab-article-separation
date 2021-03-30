@@ -135,6 +135,7 @@ def save_clustering_to_page(clustering, page_path, save_dir, info=""):
 
     # Write pagexml
     page.set_textline_attr(textlines)
+    page_path = os.path.relpath(page_path)
     save_name = re.sub(r'\.xml$', '_clustering.xml', os.path.basename(page_path))
     page_dir = re.sub(r'page$', 'clustering', os.path.dirname(page_path))
     if info:
@@ -226,7 +227,7 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
 
     # Draw nodes
     graph_views = dict()
-    node_collection = nx.draw_networkx_nodes(graph, positions, ax=axes[0], node_color=node_colors, node_size=50, **kwds)
+    node_collection = nx.draw_networkx_nodes(graph, positions, ax=axes[0], node_color=node_colors, node_size=50)
     node_collection.set_zorder(3)
     graph_views['nodes'] = [node_collection]
     # Draw edges
@@ -249,13 +250,14 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
             cax.axis("off")
     # Draw labels
     if with_labels:
-        label_collection = nx.draw_networkx_labels(graph, positions, ax=axes[0], font_size=5, **kwds)
+        label_collection = nx.draw_networkx_labels(graph, positions, ax=axes[0], font_size=5)
         graph_views['labels'] = [label_collection]
     plt.connect('key_press_event', lambda event: toggle_graph_view(event, graph_views))
     # Draw page underneath
     plot_util.plot_pagexml(original_page, img_path, ax=axes[0], plot_article=True, plot_legend=False)
 
     # Save image
+    page_path = os.path.relpath(page_path)
     save_name = re.sub(r'\.xml$', f'_clustering_debug.jpg', os.path.basename(page_path))
     page_dir = os.path.dirname(page_path)
     if info:
@@ -265,9 +267,90 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
     save_path = os.path.join(save_dir, save_name)
-    plt.savefig(save_path, bbox_inches='tight', pad_inches=0, dpi=1000)
+    plt.savefig(save_path, bbox_inches='tight', pad_inches=0, dpi=300)
     logging.info(f"Saved debug image '{save_path}'")
     plt.close(plt.gcf())
+
+
+# def plot_graph_clustering_and_page_debug(graph, node_features, page_path, cluster_path, save_dir,
+#                                          threshold, info, with_edges=True, with_labels=True, **kwds):
+#     # Get pagexml and image file
+#     original_page = Page(page_path)
+#     img_path = get_img_from_page_path(page_path)
+#     cluster_page = Page(cluster_path)
+#
+#     from citlab_article_separation.gnn.input.feature_generation import delaunay_edges, get_data_from_pagexml
+#     num_nodes = len(graph.nodes)
+#     _, _, _, _, resolution = get_data_from_pagexml(page_path)
+#     norm_x, norm_y = float(resolution[0]), float(resolution[1])
+#     interacting_nodes = delaunay_edges(num_nodes, node_features, norm_x, norm_y)
+#
+#     delaunay_graph = nx.Graph()
+#     delaunay_graph.add_nodes_from(graph.nodes)
+#     delaunay_graph.add_edges_from(interacting_nodes)
+#     # graph = delaunay_graph
+#
+#     print(delaunay_graph.nodes)
+#     print(delaunay_graph.edges)
+#
+#     fig, axes = plt.subplots(1, 1, figsize=(16, 9))
+#     plot_util.plot_pagexml(original_page, img_path, ax=axes, plot_article=True, plot_legend=False)
+#     axes.tick_params(axis='both', which='both', bottom=False, left=False, labelbottom=False, labelleft=False)
+#
+#     # Add graph to subplot
+#     # Get node positions from input
+#     page_resolution = original_page.get_image_resolution()
+#     region_centers = node_features[:, 2:4] * page_resolution
+#     positions = dict()
+#     for n in range(node_features.shape[0]):
+#         positions[n] = region_centers[n]
+#         # node_positions[n][1] = page_resolution[1] - node_positions[n][1]  # reverse y-values (for plotting)
+#
+#     # Get article colors according to baselines
+#     article_dict = original_page.get_article_dict()
+#     unique_ids = sorted(set(article_dict.keys()), key=functools.cmp_to_key(compare_article_ids))
+#     if None in unique_ids:
+#         article_colors = dict(zip(unique_ids, plot_util.COLORS[:len(unique_ids) - 1] + [plot_util.DEFAULT_COLOR]))
+#     else:
+#         article_colors = dict(zip(unique_ids, plot_util.COLORS[:len(unique_ids)]))
+#     # Build node colors (region article_id matching baselines article_id)
+#     region_article_ids = get_region_article_ids(original_page)
+#     node_colors = [article_colors[a_id] for a_id in region_article_ids]
+#     node_colors = [node_colors[i] for i in list(graph.nodes)]  # reorder coloring according to node_list
+#
+#     # Draw nodes
+#     node_collection = nx.draw_networkx_nodes(graph, positions, ax=axes, node_color="darkgreen", node_size=50, **kwds)
+#     node_collection.set_zorder(3)
+#     # Draw labels
+#     label_collection = nx.draw_networkx_labels(graph, positions, ax=axes, font_size=5, **kwds)
+#     # # Draw edges
+#     # edge_collection = nx.draw_networkx_edges(delaunay_graph, positions, ax=axes, width=0.5, arrows=False, **kwds)
+#     # # edge_collection.set_zorder(2)
+#
+#     edge_collection = nx.draw_networkx_edges(graph, positions, ax=axes, width=1.5, arrows=False, **kwds)
+#     edge_collection.set_zorder(2)
+#     # optional colorbar
+#     if 'edge_cmap' in kwds and 'edge_color' in kwds:
+#         # add colorbar to confidence graph
+#         divider = make_axes_locatable(axes)
+#         cax = divider.append_axes("right", size="5%", pad=0.05)
+#         # norm = Normalize(vmin=min(kwds['edge_color']), vmax=max(kwds['edge_color']))
+#         norm = Normalize(vmin=threshold, vmax=1.0)
+#         fig.colorbar(ScalarMappable(norm=norm, cmap=kwds['edge_cmap']), cax=cax, format="%.2f")
+#
+#     # Save image
+#     save_name = re.sub(r'\.xml$', f'_2.jpg', os.path.basename(page_path))
+#     page_dir = os.path.dirname(page_path)
+#     if info:
+#         save_dir = os.path.join(save_dir, page_dir, info)
+#     else:
+#         save_dir = os.path.join(save_dir, page_dir)
+#     if not os.path.isdir(save_dir):
+#         os.makedirs(save_dir)
+#     save_path = os.path.join(save_dir, save_name)
+#     plt.savefig(save_path, bbox_inches='tight', pad_inches=0, dpi=1000)
+#     logging.info(f"Saved debug image '{save_path}'")
+#     plt.close(plt.gcf())
 
 
 def plot_graph_and_page(page_path, graph, node_features, save_dir, img_path=None,
