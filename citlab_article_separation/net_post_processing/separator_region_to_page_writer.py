@@ -141,8 +141,10 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
             for tl_id, text_lines in text_lines_dict.items():
                 for text_line in text_lines:
                     text_line_sh = geometry.Polygon(text_line.surr_p.points_list).buffer(0)
+                    # If text line is contained completely in the vertical separator polygon delete it
                     if sep_poly_sh.contains(text_line_sh):
-                        return text_lines_dict, False
+                        text_lines_dict[tl_id].remove(text_line)
+                        continue
                     if text_line_sh.intersects(sep_poly_sh):
                         text_line_splits_sh = _split_shapely_polygon(text_line_sh, sep_poly_sh)
                         text_line_splits = [list(poly.exterior.coords) for poly in text_line_splits_sh]
@@ -184,11 +186,12 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
                             used_idx.add(idx)
                             new_text_line_objects[idx].set_baseline(list(baseline_split.coords))
 
+                        # Remove all text line splits that don't have an associated baseline split
+                        # TODO: Maybe rather consider the word elements instead?
                         new_text_line_objects = [new_text_line_objects[idx] for idx in used_idx]
                         text_lines_dict[tl_id].extend(new_text_line_objects)
                         text_lines_dict[tl_id].remove(text_line)
-
-            return text_lines_dict, True
+            return text_lines_dict
 
         def _split_regions(region_dict, sep_poly):
             """
@@ -337,21 +340,16 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
                 continue
 
             if separator_type == sSEPARATORREGION + "_vertical":
-                final_separator_polygon_idx = set()
                 for text_region in text_regions:
                     # For each text line we remember its splits, initialize with the original baseline
                     text_lines_dict = {tl.id: [tl] for tl in text_region.text_lines}
                     for i, separator_polygon in enumerate(separator_polygons):
-                        text_line_dict, use_separator = _split_text_lines(text_lines_dict, separator_polygon)
-                        if use_separator is True:
-                            final_separator_polygon_idx.add(i)
-                    final_separator_polygons = [separator_polygons[i] for i in final_separator_polygon_idx]
+                        text_lines_dict = _split_text_lines(text_lines_dict, separator_polygon)
 
-                    # TODO: Sort Text lines for a ID according to the x values
+                    # TODO: Sort Text lines for an ID according to the x values
                     final_text_lines = []
                     for text_lines in text_lines_dict.values():
                         final_text_lines.extend(text_lines)
-                    separator_polygons = list(final_separator_polygons)
                     text_region.text_lines = final_text_lines
                     # self.page_object.set_text_lines(text_region, final_text_lines, overwrite=True)
 
