@@ -2,6 +2,7 @@ import os
 import argparse
 import json
 import re
+import time
 import logging
 import numpy as np
 from scipy.spatial import Delaunay
@@ -661,9 +662,11 @@ def generate_input_jsons_bc(page_list, out_path,
     # Get json paths
     json_data = []
     if json_list:
+        json_timer = time.time()
         for json_path in json_list:
             with open(json_path, "r") as json_file:
                 json_data.append(json.load(json_file))
+        logging.info("Time (loading external jsons): {:.2f} seconds".format(time.time() - json_timer))
 
     # Setup textblock similarity feature extractor
     sim_feat_extractor = None
@@ -673,6 +676,7 @@ def generate_input_jsons_bc(page_list, out_path,
     # Get data from pagexml and write to json
     create_default_dir = False if out_path else True
     skipped_pages = []
+    start_timer = time.time()
     for page_path in page_paths:
         logging.info(f"Processing... {page_path}")
         # build input & target
@@ -722,6 +726,7 @@ def generate_input_jsons_bc(page_list, out_path,
                 logging.info(f"Saved json with graph features '{out}'")
         else:
             skipped_pages.append(page_path)
+    logging.info("Time (feature generation): {:.2f} seconds".format(time.time() - start_timer))
     logging.info(f"Wrote {len(page_paths)-len(skipped_pages)}/{len(page_paths)} files.")
     logging.info("Skipped files:")
     for skipped in skipped_pages:
@@ -761,56 +766,10 @@ if __name__ == '__main__':
     logging.info(f"  -external_jsons: {args.external_jsons}")
     logging.info(f"  -language: {args.language}")
     logging.info(f"  -wv_path: {args.wv_path}")
-    # generate_input_jsons_bc(args.pagexml_list, args.external_jsons, args.out_dir, args.num_node_features,
-    #                         args.num_edge_features, args.interaction, args.visual_regions)
+
     generate_input_jsons_bc(args.pagexml_list,
                             args.out_dir,
                             args.interaction,
                             args.visual_regions,
                             args.external_jsons,
                             (args.language, args.wv_path))
-
-    # # page_path = "/home/johannes/devel/data/NewsEye_GT/AS_BC/NewsEye_ONB_232_textblocks/274950/ONB_nfp_18730705_corrected_duplicated/page/ONB_nfp_18730705_010.xml"
-    # # page_path = "/home/johannes/devel/data/NewsEye_GT/AS_BC/NewsEye_NLF_200_textblocks/330063/1869_01_04/page/ac-00001.xml"
-    # # page_path = "/home/johannes/devel/data/NewsEye_GT/AS_BC/NewsEye_ONB_232_textblocks/274954/ONB_ibn_19110701_corrected_duplicated/page/ONB_ibn_19110701_009.xml"
-    # page_path = "/home/johannes/devel/aze19120915_00000002.xml"
-    # img_path = "/home/johannes/devel/aze19120915_00000002.jpg"
-    #
-    # num_nodes, interacting_nodes, num_interacting_nodes, node_features, edge_features, \
-    # visual_regions_nodes, num_points_visual_regions_nodes, visual_regions_edges, num_points_visual_regions_edges, \
-    # gt_relations, gt_num_relations = \
-    #     build_input_and_target_bc(page_path=page_path,
-    #                               interaction='delaunay',
-    #                               visual_regions=False)
-    #
-    # from citlab_article_separation.gnn.io import build_weighted_relation_graph, create_undirected_graph, plot_graph_and_page
-    # page = Page(page_path)
-    # graph = build_weighted_relation_graph(interacting_nodes,
-    #                                       [0.0 for i in range(len(interacting_nodes))],
-    #                                       [{'separated_h': bool(e[0]), 'separated_v': bool(e[1])} for e in edge_features[:, :2]])
-    # graph = create_undirected_graph(graph)
-    #
-    # edge_colors = []
-    # for u, v, d in graph.edges(data=True):
-    #     color = 'g'
-    #     if d['separated_v']:
-    #         color = 'm'
-    #     if d['separated_h']:
-    #         color = 'r'
-    #     edge_colors.append(color)
-    # edge_cmap = None
-    #
-    # # import matplotlib.pyplot as plt
-    # # edge_colors = np.arange(len(list(graph.edges())))
-    # # edge_cmap = plt.get_cmap('jet')
-    #
-    # plot_graph_and_page(page_path, graph, node_features, img_path=img_path, save_dir="/home/johannes",
-    #                     with_edges=True, with_labels=True, edge_color=edge_colors, edge_cmap=edge_cmap)
-    #
-    # # edge_colors = []
-    # # for u, v, d in graph_full.edges(data='weight'):
-    # #     edge_colors.append(d)
-    # # plot_graph_and_page(page_path, graph_full, node_features, self._flags.debug_dir,
-    # #                     with_edges=True, with_labels=True, desc='confidences',
-    # #                     edge_color=edge_colors, edge_cmap=plt.get_cmap('jet'),
-    # #                     edge_vmin=0.0, edge_vmax=1.0)
