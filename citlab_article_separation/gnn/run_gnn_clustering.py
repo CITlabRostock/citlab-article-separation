@@ -227,12 +227,14 @@ class EvaluateRelation(object):
                                  f"{self._flags.batch_size} samples each.")
                     break
                 try:
+                    logging.info(f"Processing... {page_path}")
                     page_path = self._page_paths.pop(0)
                     # skip pages with no more than one TextRegion
                     page = Page(page_path)
                     text_regions = page.get_text_regions()
                     text_regions, _ = discard_regions(text_regions)
-                    if len(text_regions) <= 1:
+                    if len(text_regions) < 2:
+                        logging.warning(f"Page contains less than two text regions. Nothing to cluster. Skipping.")
                         continue
                     # get one batch (input_dict, target_dict) from generator
                     next_batch = sess.run([self._next_batch])[0]
@@ -260,7 +262,6 @@ class EvaluateRelation(object):
 
                     # TODO: manually set class_probabilities of edges over horizontal separators to zero?!
 
-                    logging.info(f"Processing... {page_path}")
                     if 'node_features' in placeholders:
                         node_features_node = graph.get_tensor_by_name('node_features:0')
                         node_features = feed_dict[node_features_node][0]  # assume batch_size = 1
@@ -351,7 +352,8 @@ class EvaluateRelation(object):
                                                        edge_cmap=plt.get_cmap('jet'))
 
                 # break as soon as dataset is empty
-                except tf.errors.OutOfRangeError:
+                # (IndexError for empty page_paths list, OutOfRangeError for empty tf dataset)
+                except (tf.errors.OutOfRangeError, IndexError):
                     break
 
             # # Compute Precision, Recall, F1
