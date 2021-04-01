@@ -121,20 +121,20 @@ def save_conf_to_json(confidences, page_path, save_dir, symmetry_fn=gmean):
 def save_clustering_to_page(clustering, page_path, save_dir, info=""):
     page = Page(page_path)
     text_regions = page.get_regions()['TextRegion']
+    # discard text regions
     text_regions, _ = discard_regions(text_regions)
     assert len(clustering) == len(text_regions), f"Number of nodes in clustering ({len(clustering)}) does not " \
                                                  f"match number of text regions ({len(text_regions)}) in {page_path}."
 
     # Set textline article ids based on clustering
-    textlines = []
     for index, text_region in enumerate(text_regions):
         article_id = clustering[index]
         for text_line in text_region.text_lines:
             text_line.set_article_id("a" + str(article_id))
-            textlines.append(text_line)
+    # overwrite text regions (and text lines)
+    page.set_text_regions(text_regions, overwrite=True)
 
     # Write pagexml
-    page.set_textline_attr(textlines)
     page_path = os.path.relpath(page_path)
     save_name = re.sub(r'\.xml$', '_clustering.xml', os.path.basename(page_path))
     page_dir = re.sub(r'page$', 'clustering', os.path.dirname(page_path))
