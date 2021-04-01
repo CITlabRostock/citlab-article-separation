@@ -69,60 +69,70 @@ class HeadingNetPostProcessor(RegionNetPostProcessor):
 
         # Get the most common stroke width and text height (median vs mode - or combination of both?)
         text_line_stroke_width_list = list(text_line_stroke_width_dict.values())
-        stroke_width_mode = Counter(text_line_stroke_width_list).most_common(1)[0][0]
-        stroke_width_median = np.median(text_line_stroke_width_list)
-        text_line_height_list = list(text_line_height_dict.values())
-        text_line_height_mode = Counter(text_line_height_list).most_common(1)[0][0]
-        text_line_height_median = np.median(text_line_height_list)
 
-        for text_line in text_lines:
-            # text_line_stroke_width_diff = text_line_stroke_width_dict[text_line.id] - stroke_width_median
-            text_line_stroke_width_diff = text_line_stroke_width_dict[text_line.id] - stroke_width_mode
-            # text_line_stroke_width_diff /= image_width
-            # text_line_stroke_width_diff_scaled = text_line_stroke_width_diff
-            text_line_stroke_width_dict[text_line.id] = text_line_stroke_width_diff
 
-            # text_line_height_diff = text_line_height_dict[text_line.id] - text_line_height_median
-            text_line_height_diff = text_line_height_dict[text_line.id] - text_line_height_mode
-            # text_line_height_diff /= image_height
-            # text_line_height_diff_scaled = text_line_height_diff
-            text_line_height_dict[text_line.id] = text_line_height_diff
+        if len(text_line_stroke_width_list) == 0:
+            use_swt_features = False
+        else:
+            use_swt_features = True
 
-        text_line_stroke_width_list = list(text_line_stroke_width_dict.values())
-        stroke_width_min = np.min(text_line_stroke_width_list)
-        stroke_width_max = np.max(text_line_stroke_width_list)
+            stroke_width_mode = Counter(text_line_stroke_width_list).most_common(1)[0][0]
+            # stroke_width_median = np.median(text_line_stroke_width_list)
+            text_line_height_list = list(text_line_height_dict.values())
+            text_line_height_mode = Counter(text_line_height_list).most_common(1)[0][0]
+            # text_line_height_median = np.median(text_line_height_list)
 
-        text_line_height_list = list(text_line_height_dict.values())
-        text_line_height_min = np.min(text_line_height_list)
-        text_line_height_max = np.max(text_line_height_list)
+            for text_line in text_lines:
+                # text_line_stroke_width_diff = text_line_stroke_width_dict[text_line.id] - stroke_width_median
+                text_line_stroke_width_diff = text_line_stroke_width_dict[text_line.id] - stroke_width_mode
+                # text_line_stroke_width_diff /= image_width
+                # text_line_stroke_width_diff_scaled = text_line_stroke_width_diff
+                text_line_stroke_width_dict[text_line.id] = text_line_stroke_width_diff
 
-        net_weight = self.weight_dict["net"]
-        stroke_width_weight = self.weight_dict["stroke_width"]
-        text_line_height_weight = self.weight_dict["text_height"]
+                # text_line_height_diff = text_line_height_dict[text_line.id] - text_line_height_median
+                text_line_height_diff = text_line_height_dict[text_line.id] - text_line_height_mode
+                # text_line_height_diff /= image_height
+                # text_line_height_diff_scaled = text_line_height_diff
+                text_line_height_dict[text_line.id] = text_line_height_diff
 
-        net_thresh = self.thresh_dict["net_thresh"]
-        stroke_width_thresh = self.thresh_dict["stroke_width_thresh"]
-        text_line_height_thresh = self.thresh_dict["text_height_thresh"]
-        sw_th_thresh = self.thresh_dict["sw_th_thresh"]
+            text_line_stroke_width_list = list(text_line_stroke_width_dict.values())
+            stroke_width_min = np.min(text_line_stroke_width_list)
+            stroke_width_max = np.max(text_line_stroke_width_list)
+
+            text_line_height_list = list(text_line_height_dict.values())
+            text_line_height_min = np.min(text_line_height_list)
+            text_line_height_max = np.max(text_line_height_list)
+
+            net_weight = self.weight_dict["net"]
+            stroke_width_weight = self.weight_dict["stroke_width"]
+            text_line_height_weight = self.weight_dict["text_height"]
+
+            net_thresh = self.thresh_dict["net_thresh"]
+            stroke_width_thresh = self.thresh_dict["stroke_width_thresh"]
+            text_line_height_thresh = self.thresh_dict["text_height_thresh"]
+            sw_th_thresh = self.thresh_dict["sw_th_thresh"]
 
         page_object = region_page_writer.page_object
         for text_line in text_lines:
-            text_line_stroke_width_conf = self.scale_to_new_interval(text_line_stroke_width_dict[text_line.id],
-                                                                     old_min=stroke_width_min,
-                                                                     old_max=stroke_width_max)
-            text_line_height_conf = self.scale_to_new_interval(text_line_height_dict[text_line.id],
-                                                               old_min=text_line_height_min,
-                                                               old_max=text_line_height_max)
             text_line_net_conf = text_line_net_prob_dict[text_line.id]
+            if use_swt_features:
+                text_line_stroke_width_conf = self.scale_to_new_interval(text_line_stroke_width_dict[text_line.id],
+                                                                         old_min=stroke_width_min,
+                                                                         old_max=stroke_width_max)
+                text_line_height_conf = self.scale_to_new_interval(text_line_height_dict[text_line.id],
+                                                                   old_min=text_line_height_min,
+                                                                   old_max=text_line_height_max)
 
-            if text_line_stroke_width_conf >= stroke_width_thresh or text_line_height_conf >= text_line_height_thresh or \
-                    (text_line_stroke_width_conf + text_line_height_conf) / 2 >= sw_th_thresh or text_line_net_conf >= net_thresh:
-                is_heading_confidence = 1.0
+                if text_line_stroke_width_conf >= stroke_width_thresh or text_line_height_conf >= text_line_height_thresh or \
+                        (text_line_stroke_width_conf + text_line_height_conf) / 2 >= sw_th_thresh or text_line_net_conf >= net_thresh:
+                    is_heading_confidence = 1.0
 
+                else:
+                    is_heading_confidence = net_weight * text_line_net_conf \
+                                            + stroke_width_weight * text_line_stroke_width_conf \
+                                            + text_line_height_weight * text_line_height_conf
             else:
-                is_heading_confidence = net_weight * text_line_net_conf \
-                                        + stroke_width_weight * text_line_stroke_width_conf \
-                                        + text_line_height_weight * text_line_height_conf
+                is_heading_confidence = text_line_net_conf
 
             if is_heading_confidence > self.threshold:
                 text_line_nd = page_object.get_child_by_id(page_object.page_doc, text_line.id)[0]
