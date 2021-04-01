@@ -227,8 +227,8 @@ class EvaluateRelation(object):
                                  f"{self._flags.batch_size} samples each.")
                     break
                 try:
-                    logging.info(f"Processing... {page_path}")
                     page_path = self._page_paths.pop(0)
+                    logging.info(f"Processing... {page_path}")
                     # skip pages with no more than one TextRegion
                     page = Page(page_path)
                     text_regions = page.get_text_regions()
