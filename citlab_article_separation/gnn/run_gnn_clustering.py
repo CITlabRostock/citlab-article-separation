@@ -78,6 +78,7 @@ class EvaluateRelation(object):
         self._flags = flags.FLAGS
         self._params = {'num_gpus': len(self._flags.gpu_devices)}
         self._page_paths = None
+        self._json_paths = None
         self._dataset = None
         self._dataset_iterator = None
         self._next_batch = None
@@ -209,9 +210,9 @@ class EvaluateRelation(object):
             self._dataset_iterator = tf.compat.v1.data.make_one_shot_iterator(self._dataset)
             self._next_batch = self._dataset_iterator.get_next()
             with open(self._flags.eval_list, 'r') as eval_list_file:
-                self._page_paths = [line.rstrip() for line in eval_list_file.readlines()]
+                self._json_paths = [line.rstrip() for line in eval_list_file.readlines()]
                 if not self._flags.create_data_from_pagexml:
-                    self._page_paths = [get_page_from_json_path(json_path) for json_path in self._page_paths]
+                    self._page_paths = [get_page_from_json_path(json_path) for json_path in self._json_paths]
 
             output_node = graph.get_tensor_by_name("output_belong_to_same_instance:0")
             target_key = "relations_to_consider_gt"
@@ -228,14 +229,20 @@ class EvaluateRelation(object):
                     break
                 try:
                     page_path = self._page_paths.pop(0)
+                    json_path = self._json_paths.pop(0)
                     logging.info(f"Processing... {page_path}")
-                    # skip pages with no more than one TextRegion
-                    page = Page(page_path)
-                    text_regions = page.get_text_regions()
-                    text_regions, _ = discard_regions(text_regions)
-                    if len(text_regions) < 2:
-                        logging.warning(f"Page contains less than two text regions. Nothing to cluster. Skipping.")
-                        continue
+                    # Skip files where json is missing (e.g. when there are less than 2 text regions)
+                    if not os.path.isfile(json_path):
+                        logging.warning(f"No json file found to given pageXML {page_path}. Skipping.")
+
+                    # # skip pages with no more than one TextRegion
+                    # page = Page(page_path)
+                    # text_regions = page.get_text_regions()
+                    # text_regions, _ = discard_regions(text_regions)
+                    # if len(text_regions) < 2:
+                    #     logging.warning(f"Page contains less than two text regions. Nothing to cluster. Skipping.")
+                    #     continue
+
                     # get one batch (input_dict, target_dict) from generator
                     next_batch = sess.run([self._next_batch])[0]
                     batch_counter += 1
