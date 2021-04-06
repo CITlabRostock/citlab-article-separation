@@ -106,8 +106,11 @@ class TextblockClustering(object):
         """
         self._conf_mat = np.array(confs)
         self._mat_dim = self._conf_mat.shape[0]
+        # make confidence matrix symmetric (if not already is)
         if symmetry_fn:
             self._make_symmetric(symmetry_fn)
+        # Substitute confidences of 0.0 and 1.0 with next bigger/smaller float (to prevent zero divides)
+        self._smooth_confs()
         self._dist_mat = -np.log(self._conf_mat)
         #   linkage
         self._cond_dist_list = []
@@ -127,6 +130,13 @@ class TextblockClustering(object):
         mat_transpose = self._conf_mat.transpose()
         temp_mat = np.stack([mat, mat_transpose], axis=-1)
         self._conf_mat = symmetry_fn(temp_mat, axis=-1)
+
+    def _smooth_confs(self):
+        dtype = self._conf_mat.dtype
+        min_val = np.nextafter(0, 1, dtype=dtype)
+        max_val = np.nextafter(1, 0, dtype=dtype)
+        self._conf_mat[self._conf_mat == 0.0] = min_val
+        self._conf_mat[self._conf_mat == 1.0] = max_val
 
     def calc(self, method):
         """
