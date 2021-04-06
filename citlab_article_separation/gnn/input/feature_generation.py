@@ -8,6 +8,7 @@ import numpy as np
 from scipy.spatial import Delaunay
 from scipy.spatial.qhull import QhullError
 from shapely.geometry import LineString
+import multiprocessing as mp
 
 from citlab_python_util.math.rounding import round_by_precision_and_base as round_base
 from citlab_python_util.io.path_util import get_img_from_page_path
@@ -649,14 +650,12 @@ def get_data_from_pagexml(path_to_pagexml):
 
 # def generate_input_jsons_bc(page_list, json_list, out_path, num_node_features, num_edge_features,
 #                             interaction, visual_regions):
-def generate_input_jsons_bc(page_list, out_path,
+def generate_input_jsons_bc(page_paths, out_path,
                             interaction="delaunay",
                             visual_regions=True,
                             json_list=None,
                             tb_similarity_setup=(None, None)):
-    # Get page paths
-    with open(page_list, "r") as page_files:
-        page_paths = [os.path.abspath(line.rstrip()) for line in page_files.readlines()]
+
     assert all([file_name.endswith(".xml") for file_name in page_paths]), "Expected files to end in '.xml'"
 
     # Get json paths
@@ -756,6 +755,9 @@ if __name__ == '__main__':
     parser.add_argument('--language', default=None, help="language used in tokenization and stopwords filtering "
                                                          "for text block similarites via word vectors")
     parser.add_argument('--wv_path', default=None, help="path to wordvector embeddings used for text block similarities")
+    parser.add_argument("--num_workers", type=int, default=1,
+                        help="number of partitions to create from original list file and to compute in parallel. "
+                             "Only works when no external jsons are used.")
     args = parser.parse_args()
 
     logging.info("Feature generation setup:")
@@ -766,10 +768,38 @@ if __name__ == '__main__':
     logging.info(f"  -external_jsons: {args.external_jsons}")
     logging.info(f"  -language: {args.language}")
     logging.info(f"  -wv_path: {args.wv_path}")
+    if args.external_jsons:
+        logging.info(f"  -num_workers: 1 (forced by external_jsons)")
+    else:
+        logging.info(f"  -num_workers: {args.num_workers}")
 
-    generate_input_jsons_bc(args.pagexml_list,
-                            args.out_dir,
-                            args.interaction,
-                            args.visual_regions,
-                            args.external_jsons,
-                            (args.language, args.wv_path))
+    # Get page paths
+    page_paths = [os.path.abspath(line.rstrip()) for line in open(args.pagexml_list, "r")]
+    n = args.num_workers
+
+    # parallel over n workers
+    if n > 1 and not args.external_jsons:
+        split = (len(page_paths) // n) + 1
+        processes = []
+        for index, sublist in enumerate([page_paths[i:i + split] for i in range(0, len(page_paths), split)]):
+            # start worker
+            p = mp.Process(target=generate_input_jsons_bc,
+                           args=(sublist,
+                                 args.out_dir,
+                                 args.interaction,
+                                 args.visual_regions,
+                                 args.external_jsons,
+                                 (args.language, args.wv_path)))
+            p.start()
+            logging.info(f"Started worker {index}")
+            processes.append(p)
+        for p in processes:
+            p.join()
+    # single threaded (forced if external jsons are used)
+    else:
+        generate_input_jsons_bc(page_paths,
+                                args.out_dir,
+                                args.interaction,
+                                args.visual_regions,
+                                args.external_jsons,
+                                (args.language, args.wv_path))
