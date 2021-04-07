@@ -234,6 +234,7 @@ class EvaluateRelation(object):
                     # Skip files where json is missing (e.g. when there are less than 2 text regions)
                     if not os.path.isfile(json_path):
                         logging.warning(f"No json file found to given pageXML {page_path}. Skipping.")
+                        continue
 
                     # # skip pages with no more than one TextRegion
                     # page = Page(page_path)
