@@ -230,19 +230,12 @@ class EvaluateRelation(object):
                 try:
                     page_path = self._page_paths.pop(0)
                     json_path = self._json_paths.pop(0)
+
                     logging.info(f"Processing... {page_path}")
                     # Skip files where json is missing (e.g. when there are less than 2 text regions)
                     if not os.path.isfile(json_path):
                         logging.warning(f"No json file found to given pageXML {page_path}. Skipping.")
                         continue
-
-                    # # skip pages with no more than one TextRegion
-                    # page = Page(page_path)
-                    # text_regions = page.get_text_regions()
-                    # text_regions, _ = discard_regions(text_regions)
-                    # if len(text_regions) < 2:
-                    #     logging.warning(f"Page contains less than two text regions. Nothing to cluster. Skipping.")
-                    #     continue
 
                     # get one batch (input_dict, target_dict) from generator
                     next_batch = sess.run([self._next_batch])[0]
