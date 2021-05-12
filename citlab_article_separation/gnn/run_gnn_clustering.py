@@ -56,7 +56,8 @@ flags.define_choices('clustering_method', ['dbscan', 'linkage', 'greedy', 'dbsca
 flags.define_dict('clustering_params', {}, "dict of key=value pairs defining the clustering configuration")
 flags.define_string("out_dir", "", "directory to save graph confidences jsons and clustering pageXMLs. It retains the "
                                    "folder structure of the input data. Use an empty 'out_dir' for the original folder")
-flags.define_boolean("only_save_conf", False, "Only save the graph confidences and skip the clustering process")
+flags.define_choices('save_conf', ['no_conf', 'with_conf', 'only_conf'], 'no_conf', str,
+                     "('no_conf', 'with_conf', 'only_conf')", 'handles the saving of the graph confidences.')
 
 # Misc
 # ====
@@ -273,13 +274,14 @@ class EvaluateRelation(object):
                     # clustering of confidence graph
                     confidences = np.reshape(class_probabilities, [node_features.shape[0], -1])
 
-                    if self._flags.only_save_conf:
+                    if self._flags.save_conf != 'no_conf':
                         # save confidences
                         save_conf_to_json(confidences=confidences,
                                           page_path=page_path,
                                           save_dir=self._flags.out_dir)
-                        # skip clustering
-                        continue
+                        if self._flags.save_conf == 'only_conf':
+                            # skip clustering
+                            continue
 
                     self._tb_clustering.set_confs(confidences)
                     self._tb_clustering.calc(method=self._flags.clustering_method)
