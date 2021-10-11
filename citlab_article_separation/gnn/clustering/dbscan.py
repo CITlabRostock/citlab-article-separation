@@ -142,6 +142,10 @@ class DBScanRelation:
         return neighbors
 
     def validate_cluster_agreement(self, node, label):
+        """
+        Computes average confidence over `node` and all other nodes matching the given `label`. It then
+        returns whether or not this confidence passes the set `cluster_agreement_threshold`.
+        """
         cluster_indices = [l == label for l in self.labels]  # node indices with matching label
         cluster_confidences = self.confidences[node, cluster_indices]  # confidences between node and cluster_nodes
         cluster_agreement = np.mean(cluster_confidences)  # average confidence
