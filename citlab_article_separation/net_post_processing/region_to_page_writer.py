@@ -1,13 +1,9 @@
 import os
 import shutil
 from abc import ABC, abstractmethod
-
 from citlab_python_util.io import file_loader
 from citlab_python_util.image_processing.image_stats import get_image_dimensions, get_scaling_factor
-from citlab_python_util.logging import custom_logging
 from citlab_python_util.parser.xml.page.page import Page
-
-logger = custom_logging.setup_custom_logger(__name__)
 
 
 class RegionToPageWriter(ABC):

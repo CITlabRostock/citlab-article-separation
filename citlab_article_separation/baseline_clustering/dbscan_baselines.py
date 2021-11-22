@@ -1,14 +1,14 @@
-# -*- coding: utf-8 -*-
 """ DBSCAN based on Chris McCormicks "https://github.com/chrisjmccormick/dbscan" """
-
 import math
 import jpype
 import collections
 import numpy as np
-
 from citlab_python_util.geometry.rectangle import Rectangle
 from citlab_python_util.geometry.util import calc_reg_line_stats, get_dist_fast, get_in_dist, get_off_dist
 from citlab_python_util.geometry.polygon import Polygon, norm_poly_dists
+from citlab_python_util.logging.custom_logging import setup_custom_logger
+
+logger = setup_custom_logger(__name__, level="info")
 
 
 def get_list_of_scaled_polygons(lst_of_polygons, scaling_factor=1):
@@ -173,8 +173,7 @@ class DBSCANBaselines:
         # -1 stands for noise, clusters are numbered starting from 1)
         self.list_of_labels = [0] * len(self.list_of_normed_polygons)
         self.list_if_center = [False] * len(self.list_of_normed_polygons)
-
-        print("Number of (detected) baselines contained by the image: {}".format(len(self.list_of_normed_polygons)))
+        logger.info("Number of baselines contained by the image: {}".format(len(self.list_of_normed_polygons)))
 
     def clustering_polygons(self):
         """ Clusters the polygons with DBSCAN based approach. """
@@ -328,6 +327,6 @@ class DBSCANBaselines:
                     self.list_of_labels = [-1 if x == label else x for x in self.list_of_labels]
 
         counter_dict = collections.Counter(self.list_of_labels)
-        print("Number of detected articles (inclusive the \"noise\" class): {}".format(len(counter_dict)))
+        logger.info("Number of detected articles (inclusive the \"noise\" class): {}".format(len(counter_dict)))
 
         return self.list_of_labels

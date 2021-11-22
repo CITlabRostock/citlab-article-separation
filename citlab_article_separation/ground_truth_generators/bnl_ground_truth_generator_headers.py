@@ -1,7 +1,9 @@
 import argparse
-
 from citlab_article_separation.ground_truth_generators.region_ground_truth_generator import \
     RegionGroundTruthGenerator
+from citlab_python_util.logging.custom_logging import setup_custom_logger
+
+logger = setup_custom_logger(__name__, level="info")
 
 
 class BNLGroundTruthGeneratorHeaders(RegionGroundTruthGenerator):
@@ -35,13 +37,13 @@ class BNLGroundTruthGeneratorHeaders(RegionGroundTruthGenerator):
     def create_ground_truth_images(self):
         # Order of gt images is important for the "make_disjoint_all()" call at the end.
         for i in range(len(self.img_path_lst)):
-            print(f"{i + 1}/{len(self.img_path_lst)}: {self.img_path_lst[i]}")
+            logger.info(f"{i + 1}/{len(self.img_path_lst)}: {self.img_path_lst[i]}")
             img_width = self.img_res_lst[i][1]
             img_height = self.img_res_lst[i][0]
             sc_factor = self.scaling_factors[i]
 
             if all(len(regions[i]) == 0 for regions in self.regions_dict.values()):
-                print("\tSkipping because requested GT is not available on this page.")
+                logger.warning("\tSkipping because requested GT is not available on this page.")
                 continue
 
             self.gt_dict[self.TITLE_HEADLINE_REGIONS].append(self.create_region_gt_img(

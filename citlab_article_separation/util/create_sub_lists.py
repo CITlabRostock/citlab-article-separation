@@ -1,12 +1,15 @@
 import os
 import random
 import argparse
+from citlab_python_util.logging.custom_logging import setup_custom_logger
+
+logger = setup_custom_logger(__name__, level="info")
 
 
 def create_sub_lists(list_path, split, seed):
     with open(list_path, "r") as file:
         paths = file.readlines()
-        print(f"Read {len(paths)} lines from {list_path}")
+        logger.info(f"Read {len(paths)} lines from {list_path}")
         if seed is None:
             random.shuffle(paths)
         else:
@@ -15,8 +18,8 @@ def create_sub_lists(list_path, split, seed):
 
         num_val_test = int(len(paths) * float(split)) if float(split) < 1 else int(split)
         assert len(paths) > 2 * num_val_test, f"Not enough list elements for the desired split!"
-        print(f"Split value of {split} generates the following split: "
-              f"{len(paths) - 2*num_val_test}:{num_val_test}:{num_val_test}")
+        logger.info(f"Split value of {split} generates the following split: "
+                    f"{len(paths) - 2 * num_val_test}:{num_val_test}:{num_val_test}")
 
         list_val = paths[:num_val_test]
         list_test = paths[num_val_test:2 * num_val_test]
@@ -30,15 +33,15 @@ def create_sub_lists(list_path, split, seed):
 
         with open(val_path, "w") as val_file:
             val_file.writelines(list_val)
-            print(f"Wrote {len(list_val)} lines to {val_path}")
+            logger.info(f"Wrote {len(list_val)} lines to {val_path}")
 
         with open(test_path, "w") as test_file:
             test_file.writelines(list_test)
-            print(f"Wrote {len(list_test)} lines to {test_path}")
+            logger.info(f"Wrote {len(list_test)} lines to {test_path}")
 
         with open(train_path, "w") as train_file:
             train_file.writelines(list_train)
-            print(f"Wrote {len(list_train)} lines to {train_path}")
+            logger.info(f"Wrote {len(list_train)} lines to {train_path}")
 
 
 if __name__ == '__main__':

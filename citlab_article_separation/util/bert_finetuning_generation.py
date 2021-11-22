@@ -1,9 +1,11 @@
 import json
 import os
 import argparse
-import logging
 import numpy as np
 from citlab_python_util.parser.xml.page.page import Page
+from citlab_python_util.logging.custom_logging import setup_custom_logger
+
+logger = setup_custom_logger(__name__, level="info")
 
 
 def generate_finetuning_json(page_paths, json_path):
@@ -11,12 +13,11 @@ def generate_finetuning_json(page_paths, json_path):
     json_dict = {"page": []}
 
     region_skips = 0
-    page_skips = 0
     for xml_file in xml_files:
         # load the page xml files
         page_file = Page(xml_file)
         page_name = os.path.splitext(os.path.basename(xml_file))[0]
-        logging.info(f"Processing {xml_file}")
+        logger.info(f"Processing {xml_file}")
 
         # load text regions
         list_of_text_regions = page_file.get_text_regions()
@@ -30,13 +31,14 @@ def generate_finetuning_json(page_paths, json_path):
                 if text_line.get_article_id() is not None:
                     text_region_article_ids.append(text_line.get_article_id())
             if not text_region_article_ids:
-                logging.warning(f"{xml_file} - {text_region.id} - contains no article_IDs. Skipping.")
+                logger.warning(f"{xml_file} - {text_region.id} - contains no article_IDs. Skipping.")
+                region_skips += 1
                 continue
             values, counts = np.unique(text_region_article_ids, return_counts=True)
             index = np.argmax(counts)
             if len(values) > 1:
-                logging.warning(f"{xml_file} - {text_region.id} - contains multiple article IDs "
-                                f"({set(text_region_article_ids)}). Choosing maximum occurence ({values[index]}).")
+                logger.warning(f"{xml_file} - {text_region.id} - contains multiple article IDs "
+                               f"({set(text_region_article_ids)}). Choosing maximum occurence ({values[index]}).")
 
             # article id of the text region
             article_id = values[index]
@@ -67,13 +69,11 @@ def generate_finetuning_json(page_paths, json_path):
     # writing to json file
     with open(json_path, "w") as outfile:
         outfile.write(json_object)
-        logging.info(f"Dumped json {json_path}")
-    logging.info(f"Number of region skips = {region_skips}")
-    logging.info(f"Number of page skips = {page_skips}")
+        logger.info(f"Dumped json {json_path}")
+    logger.info(f"Number of region skips (missing article IDs) = {region_skips}")
 
 
 if __name__ == '__main__':
-    logging.getLogger().setLevel(logging.INFO)
     parser = argparse.ArgumentParser()
     parser.add_argument("--page_paths", type=str, help="list file containing paths to pageXML files for GT generation",
                         required=True)

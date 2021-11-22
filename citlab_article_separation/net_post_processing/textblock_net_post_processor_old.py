@@ -1,16 +1,14 @@
-import logging
 import os
-
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from citlab_python_util.geometry.rectangle import Rectangle
 from citlab_python_util.image_processing.image_stats import get_rotation_angle
 from scipy.ndimage import interpolation as inter
+from citlab_python_util.logging.custom_logging import setup_custom_logger
 
-logger = logging.getLogger("TextBlockNetPostProcessor")
-# logging.basicConfig(level=logging.WARNING)
-logging.basicConfig(level=logging.INFO)
+logger = setup_custom_logger(__name__, level="info")
+
 
 MIN_PIXEL_SEPARATOR_DISTANCE_FACTOR = 0.003
 MAX_RECURSION_DEPTH = 4
@@ -56,8 +54,8 @@ class TextBlockNetPostProcessor(object):
     def get_best_rotation_angle(self):
         rotation_angle_binarized_image = get_rotation_angle(self.images['binarized_image'])[1]
         rotation_angle_textblock_image = get_rotation_angle(self.images["text_block"])[1]
-        print(f"Rotation angle determined by the binarized image: {rotation_angle_binarized_image}")
-        print(f"Rotation angle determined by the text block image: {rotation_angle_textblock_image}")
+        logger.debug(f"Rotation angle determined by the binarized image: {rotation_angle_binarized_image}")
+        logger.debug(f"Rotation angle determined by the text block image: {rotation_angle_textblock_image}")
         return rotation_angle_binarized_image
         # return get_rotation_angle(self.images['binarized_image'])[1]
 
@@ -131,7 +129,7 @@ class TextBlockNetPostProcessor(object):
         :param max_recursion_depth: maximal number of times to run the recursion
         :return: a mask that can be applied to the baseline detection output to get a division into text regions
         """
-        print(MAX_RECURSION_DEPTH - max_recursion_depth)
+        logger.debug(MAX_RECURSION_DEPTH - max_recursion_depth)
 
         if max_recursion_depth == 0:
             return
@@ -143,7 +141,7 @@ class TextBlockNetPostProcessor(object):
 
         # The min_pixel_separator_distance determines up to which (pixel)distance neighboring white runs get merged!
         min_pixel_separator_distance = int(self.image_height * MIN_PIXEL_SEPARATOR_DISTANCE_FACTOR)
-        print(f"min_pixel_separator_distance = {min_pixel_separator_distance}")
+        logger.debug(f"min_pixel_separator_distance = {min_pixel_separator_distance}")
 
         # profile_list = self.get_separators(255 - self.images['text_block'], mode, threshold)
         profile_list = self.get_separators(255 - image, mode, threshold)
@@ -187,7 +185,7 @@ class TextBlockNetPostProcessor(object):
                 new_x = image_range[0] + region_rectangle.x
                 new_width = image_range[1] - image_range[0]
                 new_region_rectangle = Rectangle(new_x, region_rectangle.y, new_width, region_rectangle.height)
-            print("REGION RECTANGLE COORD: ", new_region_rectangle.get_vertices())
+            logger.debug("REGION RECTANGLE COORD: ", new_region_rectangle.get_vertices())
             cv2.rectangle(self.images["empty_image"], new_region_rectangle.get_vertices()[0], new_region_rectangle.get_vertices()[2], (255, 0, 0), 1)
             # self.get_separators(self.images["text_block"][image_range[0]:image_range[1]], new_mode, threshold)
             self.run_recursion(new_region_rectangle, max_recursion_depth - 1, new_mode, max(0.9*threshold, 0.65))

@@ -1,14 +1,14 @@
-from __future__ import print_function, division
-
 import colorsys
 import os
 import random
 from argparse import ArgumentParser
-
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
+from citlab_python_util.logging.custom_logging import setup_custom_logger
+
+logger = setup_custom_logger(__name__, level="info")
 
 
 def load_graph(frozen_graph_filename):
@@ -54,9 +54,10 @@ def apply_mask(image, mask, color, alpha=0.5):
                                   image[:, :, c])
     return image
 
+
 def plot_image_with_net_output(image, net_output):
     colors = random_colors(10)
-    print(colors)
+    # print(colors)
     # print(net_output.shape)
     # net_output_rgb_int = np.uint8(cv2.cvtColor(net_output, cv2.COLOR_GRAY2RGB))
     # net_output_rgb_int = np.uint8(np.where(net_output_rgb_int == [255, 255, 255], [0, 255, 0], [0, 0, 0]))
@@ -148,8 +149,8 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
 
                 n_class_img = out_img.shape[-1]
 
-                print("Percentage of Pixels where the net is not 100% sure: ",
-                      np.sum((0 < out_img) & (out_img < 1)) / out_img.size)
+                logger.info("Percentage of Pixels where the net is not 100% sure: ",
+                            np.sum((0 < out_img) & (out_img < 1)) / out_img.size)
 
                 if mask_threshold:
                     out_img = np.array((out_img > 0.6), np.int32)
@@ -178,7 +179,7 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                             out_img_2d_argmax[i, j, k, argmax] = 1
                             class_pixel_counts["class_" + str(argmax)] += 1
                 for class_name, class_pixel_count in class_pixel_counts.items():
-                    print(f"Percentage of pixels in {class_name}: {class_pixel_count / full_count}")
+                    logger.info(f"Percentage of pixels in {class_name}: {class_pixel_count / full_count}")
 
                 accuracy = 0
                 for cl in range(n_class_img_name):
@@ -203,7 +204,8 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                         out_img_2d_255 = np.concatenate((out_img_2d_255, gt_img), axis=1)
                     if save_folder:
                         cv2.imwrite(
-                            os.path.join(save_folder, img_name + "_OUT" + str(cl) + ext), cv2.cvtColor(np.uint8(out_img_2d_255), cv2.COLOR_RGB2BGR))
+                            os.path.join(save_folder, img_name + "_OUT" + str(cl) + ext),
+                            cv2.cvtColor(np.uint8(out_img_2d_255), cv2.COLOR_RGB2BGR))
                     if show_plot:
                         if plot_with_img:
                             _, ax = plt.subplots(1, figsize=figsize)
@@ -231,9 +233,8 @@ def plot_net_output(path_to_pb, path_to_img_lst, save_folder="", gpu_device="0",
                         # exit(1)
                 accuracy /= n_class_img
                 accuracies.append(accuracy)
-                print("Accuracy = ", accuracy)
-                print("+++++++++++++++++++++++")
-            print("Overall Accuracy = ", sum(accuracies) / len(accuracies))
+                logger.info("Accuracy = ", accuracy)
+            logger.info("Overall Accuracy = ", sum(accuracies) / len(accuracies))
 
 
 if __name__ == '__main__':

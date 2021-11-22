@@ -1,6 +1,5 @@
 import argparse
 from concurrent.futures import ProcessPoolExecutor
-
 from citlab_article_separation.net_post_processing.separator_net_post_processor import SeparatorNetPostProcessor
 from citlab_article_separation.net_post_processing.heading_net_post_processor import HeadingNetPostProcessor
 from citlab_python_util.io.file_loader import load_list_file

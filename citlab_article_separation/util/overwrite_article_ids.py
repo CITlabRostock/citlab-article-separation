@@ -1,13 +1,14 @@
 import argparse
 import os
-import logging
 import numpy as np
-
 from citlab_python_util.parser.xml.page.page import Page
+from citlab_python_util.logging.custom_logging import setup_custom_logger
+
+logger = setup_custom_logger(__name__, level="info")
 
 
 def overwrite_article_ids(page_list, gt_list):
-    logging.info("Load pagexml files in {} and overwrite textline article_ids from {}".format(page_list, gt_list))
+    logger.info("Load pagexml files in {} and overwrite textline article_ids from {}".format(page_list, gt_list))
     page_files = open(page_list, "r")
     gt_files = open(gt_list, "r")
 
@@ -27,16 +28,8 @@ def overwrite_article_ids(page_list, gt_list):
         # load the page xml files
         page_path = os.path.abspath(page_path.rstrip())
         gt_path = os.path.abspath(gt_path.rstrip())
-        try:
-            page_file = Page(page_path)
-        except Exception as ex:
-            print("Defined PAGEXML \"{}\" can not be loaded!\n{}".format(page_path, ex))
-            continue
-        try:
-            gt_file = Page(gt_path)
-        except Exception as ex:
-            print("Defined PAGEXML \"{}\" can not be loaded!\n{}".format(gt_path, ex))
-            continue
+        page_file = Page(page_path)
+        gt_file = Page(gt_path)
 
         # assert os.path.basename(page_path.rstrip()) == os.path.basename(gt_path.rstrip()), \
         #     f"Page and GT file mismatch (Page: {page_path.rstrip()} - GT: {gt_path.rstrip()})"
@@ -46,8 +39,8 @@ def overwrite_article_ids(page_list, gt_list):
         assert page_img == gt_img, f"Page and GT file image reference mismatch " \
                                    f"(Page: {page_img} - GT: {gt_img})\n{page_path}\n{gt_path}"
 
-        logging.info(f"Updating {page_path}")
-        logging.info(f"GT: {gt_path}")
+        logger.info(f"Updating {page_path}")
+        logger.info(f"GT: {gt_path}")
         # build GT dict with textline ids as keys and their article_ids as values
         gt_textlines = gt_file.get_textlines()
         gt_article_dict = dict()
@@ -59,13 +52,13 @@ def overwrite_article_ids(page_list, gt_list):
         page_textlines = page_file.get_textlines()
         for tl in page_textlines:
             if tl.get_article_id() != gt_article_dict[tl.id]:
-                logging.debug(f"Update textline ({tl.id}): article_id "
-                              f"old({tl.get_article_id()}) -> new({gt_article_dict[tl.id]})")
+                logger.debug(f"Update textline ({tl.id}): article_id "
+                             f"old({tl.get_article_id()}) -> new({gt_article_dict[tl.id]})")
                 tl.set_article_id(gt_article_dict[tl.id])
                 update_counter += 1
         page_file.set_textline_attr(page_textlines)
-        logging.debug(f"Updated {update_counter}/{len(page_textlines)} textline article_ids in "
-                      f".../{os.path.basename(page_path)}")
+        logger.debug(f"Updated {update_counter}/{len(page_textlines)} textline article_ids in "
+                     f".../{os.path.basename(page_path)}")
         all_update_counter += update_counter
 
         assert all([tl.get_article_id() == gt_article_dict[tl.id] for tl in page_file.get_textlines()]), \
@@ -74,16 +67,16 @@ def overwrite_article_ids(page_list, gt_list):
         # write pagexml
         if update_counter > 0:
             page_file.write_page_xml(page_path)
-            logging.info(f"Wrote updated pagexml to {page_path}")
+            logger.info(f"Wrote updated pagexml to {page_path}")
             file_counter += 1
 
-    logging.info(f"Updated {file_counter}/{len(page_list)} files and overall {all_update_counter} textline article_ids")
+    logger.info(f"Updated {file_counter}/{len(page_list)} files and overall {all_update_counter} textline article_ids")
     page_files.close()
     gt_files.close()
 
 
 def overwrite_article_ids_by_region(page_list, gt_list):
-    logging.info("Load pagexml files in {} and overwrite textline article_ids from {}".format(page_list, gt_list))
+    logger.info("Load pagexml files in {} and overwrite textline article_ids from {}".format(page_list, gt_list))
     page_files = open(page_list, "r")
     gt_files = open(gt_list, "r")
 
@@ -105,17 +98,8 @@ def overwrite_article_ids_by_region(page_list, gt_list):
         # load the page xml files
         page_path = os.path.abspath(page_path.rstrip())
         gt_path = os.path.abspath(gt_path.rstrip())
-
-        try:
-            page_file = Page(page_path)
-        except Exception as ex:
-            print("Defined PAGEXML \"{}\" can not be loaded!\n{}".format(page_path, ex))
-            continue
-        try:
-            gt_file = Page(gt_path)
-        except Exception as ex:
-            print("Defined PAGEXML \"{}\" can not be loaded!\n{}".format(gt_path, ex))
-            continue
+        page_file = Page(page_path)
+        gt_file = Page(gt_path)
 
         # Make sure files match
         page_img = page_file.metadata.TranskribusMeta.imageId
@@ -124,14 +108,14 @@ def overwrite_article_ids_by_region(page_list, gt_list):
         assert page_img == gt_img, f"Page and GT file image reference mismatch " \
                                    f"(Page: {page_img} - GT: {gt_img})\n{page_path}\n{gt_path}"
 
-        logging.info(f"Updating {page_path}")
-        logging.info(f"GT: {gt_path}")
+        logger.info(f"Updating {page_path}")
+        logger.info(f"GT: {gt_path}")
         # build GT dict with textline ids as keys and their article_ids as values
         gt_text_regions = gt_file.get_text_regions()
         gt_article_dict = dict()
         for text_region in gt_text_regions:
             if len(text_region.text_lines) == 0:
-                logging.warning(f"{gt_path} - {text_region.id} - contains no text_lines. Skipping.")
+                logger.warning(f"{gt_path} - {text_region.id} - contains no text_lines. Skipping.")
                 num_empty_regions += 1
                 tr_points = np.array(text_region.points.points_list, dtype=np.int32)
                 # bounding box of text region
@@ -149,13 +133,13 @@ def overwrite_article_ids_by_region(page_list, gt_list):
                 if text_line.get_article_id() is not None:
                     text_region_article_ids.append(text_line.get_article_id())
             if not text_region_article_ids:
-                logging.warning(f"{gt_path} - {text_region.id} - contains no article_IDs. Skipping.")
+                logger.warning(f"{gt_path} - {text_region.id} - contains no article_IDs. Skipping.")
                 continue
             values, counts = np.unique(text_region_article_ids, return_counts=True)
             index = np.argmax(counts)
             if len(values) > 1:
-                logging.warning(f"{gt_path} - {text_region.id} - contains multiple article IDs "
-                                f"({set(text_region_article_ids)}). Choosing maximum occurence ({values[index]}).")
+                logger.warning(f"{gt_path} - {text_region.id} - contains multiple article IDs "
+                               f"({set(text_region_article_ids)}). Choosing maximum occurence ({values[index]}).")
             gt_article_dict[text_region.id] = values[index]
 
         # go over page text regions and overwrite respective text_line article_ids with GT
@@ -164,14 +148,14 @@ def overwrite_article_ids_by_region(page_list, gt_list):
         updated_text_regions = []
         for text_region in page_text_regions:
             if len(text_region.text_lines) == 0:
-                logging.warning(f"{page_path} - {text_region.id} - contains no text_lines. Removing.")
+                logger.warning(f"{page_path} - {text_region.id} - contains no text_lines. Removing.")
                 num_removed_regions += 1
                 continue
             try:
                 article_id = gt_article_dict[text_region.id]
-                logging.debug(text_region.id, article_id)
+                logger.debug(text_region.id, article_id)
             except KeyError:
-                logging.warning(f"{page_path} - {text_region.id} - found no matching text_region in GT. Removing.")
+                logger.warning(f"{page_path} - {text_region.id} - found no matching text_region in GT. Removing.")
                 num_removed_regions += 1
                 continue
             for text_line in text_region.text_lines:
@@ -185,18 +169,18 @@ def overwrite_article_ids_by_region(page_list, gt_list):
 
         # write pagexml
         page_file.write_page_xml(page_path)
-        logging.info(f"Wrote updated pagexml to {page_path}")
+        logger.info(f"Wrote updated pagexml to {page_path}")
 
-    logging.info(f"GT pages contained {num_empty_regions} TextRegions without baselines, "
-                 f"from which {num_degenerate} are degenerate (size < 10).")
-    logging.info(f"From original {num_text_regions} TextRegions, {num_removed_regions} were removed "
-                 f"due to missing baselines or article_ids.")
+    logger.info(f"GT pages contained {num_empty_regions} TextRegions without baselines, "
+                f"from which {num_degenerate} are degenerate (size < 10).")
+    logger.info(f"From original {num_text_regions} TextRegions, {num_removed_regions} were removed "
+                f"due to missing baselines or article_ids.")
     page_files.close()
     gt_files.close()
 
 
 def clean_regions(page_list):
-    logging.info("Load pagexml files in {} and clean up regions".format(page_list))
+    logger.info("Load pagexml files in {} and clean up regions".format(page_list))
     page_files = open(page_list, "r")
     page_list = page_files.readlines()
 
@@ -206,14 +190,8 @@ def clean_regions(page_list):
     for page_path in page_list:
         # load the page xml files
         page_path = os.path.abspath(page_path.rstrip())
-
-        try:
-            page_file = Page(page_path)
-        except Exception as ex:
-            print("Defined PAGEXML \"{}\" can not be loaded!\n{}".format(page_path, ex))
-            continue
-
-        logging.info(f"Updating {page_path}")
+        page_file = Page(page_path)
+        logger.info(f"Updating {page_path}")
 
         # go over page text regions and check for missing textlines or article_ids
         page_text_regions = page_file.get_text_regions()
@@ -222,7 +200,7 @@ def clean_regions(page_list):
 
         for text_region in page_text_regions:
             if len(text_region.text_lines) == 0:
-                logging.warning(f"{page_path} - {text_region.id} - contains no text_lines. Removing.")
+                logger.warning(f"{page_path} - {text_region.id} - contains no text_lines. Removing.")
                 num_removed_textlines += 1
                 continue
             text_region_article_ids = []
@@ -230,7 +208,7 @@ def clean_regions(page_list):
                 if text_line.get_article_id() is not None:
                     text_region_article_ids.append(text_line.get_article_id())
             if not text_region_article_ids:
-                logging.warning(f"{page_path} - {text_region.id} - contains no article_IDs. Removing.")
+                logger.warning(f"{page_path} - {text_region.id} - contains no article_IDs. Removing.")
                 num_removed_articles += 1
                 continue
             updated_text_regions.append(text_region)
@@ -239,15 +217,14 @@ def clean_regions(page_list):
 
         # write pagexml
         page_file.write_page_xml(page_path)
-        logging.info(f"Wrote updated pagexml to {page_path}")
+        logger.info(f"Wrote updated pagexml to {page_path}")
 
-    logging.info(f"From original {num_text_regions} TextRegions, {num_removed_textlines + num_removed_articles} were "
-                 f"removed due to missing textlines ({num_removed_textlines}) or article_ids ({num_removed_articles}).")
+    logger.info(f"From original {num_text_regions} TextRegions, {num_removed_textlines + num_removed_articles} were "
+                f"removed due to missing textlines ({num_removed_textlines}) or article_ids ({num_removed_articles}).")
     page_files.close()
 
 
 if __name__ == '__main__':
-    logging.getLogger().setLevel(logging.INFO)
     parser = argparse.ArgumentParser()
     parser.add_argument('--in_list', help="Input list with paths to pagexml files", required=True)
     parser.add_argument('--gt_list', help="GT list with paths to corresponding pagexml files", required=True)

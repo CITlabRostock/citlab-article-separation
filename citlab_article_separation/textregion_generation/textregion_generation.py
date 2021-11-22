@@ -1,15 +1,10 @@
-# -*- coding: utf-8 -*-
-
 import jpype
 import numpy as np
 from argparse import ArgumentParser
-
 from citlab_python_util.parser.xml.page.page import Page
 from citlab_python_util.parser.xml.page.page_objects import TextRegion, Points
-
 from citlab_python_util.geometry.util import alpha_shape
 from citlab_python_util.geometry.polygon import norm_poly_dists
-
 from citlab_article_separation.baseline_clustering.dbscan_baselines import get_list_of_interline_distances
 
 
@@ -42,8 +37,7 @@ def get_data_from_pagexml(path_to_pagexml, des_dist=50, max_d=500, use_java_code
             if len(baseline.x_points) == len(baseline.y_points) > 1:
                 lst_of_polygons.append(txtline.baseline.to_polygon())
                 lst_of_txtlines_adjusted.append(txtline)
-        except(AttributeError):
-            # print("'NoneType' object in PAGEXML with id {} has no attribute 'to_polygon'!\n".format(txtline.id))
+        except AttributeError:
             continue
 
     # normed polygons
@@ -211,7 +205,6 @@ if __name__ == "__main__":
     jpype.startJVM(jpype.getDefaultJVMPath())
 
     xml_file = flags.path_to_xml_file
-    print(xml_file)
     article_textlines_dict, textline_dict = \
         get_data_from_pagexml(path_to_pagexml=xml_file, des_dist=flags.des_dist, max_d=flags.max_d,
                               use_java_code=flags.use_java_code)
@@ -219,7 +212,6 @@ if __name__ == "__main__":
     text_region_textline_dict = \
         create_text_regions(art_txtlines_dict=article_textlines_dict, txtline_dict=textline_dict, alpha=flags.alpha)
 
-    # TODO: except?
     save_results_in_pagexml(path_to_pagexml=xml_file, text_region_txtline_dict=text_region_textline_dict)
 
     # shut down the java virtual machine

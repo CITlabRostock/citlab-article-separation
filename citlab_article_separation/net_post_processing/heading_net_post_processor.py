@@ -9,11 +9,11 @@ from citlab_article_separation.net_post_processing.region_net_post_processor_bas
 from citlab_article_separation.net_post_processing.region_to_page_writer import RegionToPageWriter
 from citlab_python_util.image_processing.swt_dist_trafo import StrokeWidthDistanceTransform
 from citlab_python_util.io.file_loader import get_page_path
-from citlab_python_util.logging.custom_logging import setup_custom_logger
 from citlab_python_util.parser.xml.page.page_constants import TextRegionTypes
 from citlab_python_util.parser.xml.page.page_objects import TextLine
+from citlab_python_util.logging.custom_logging import setup_custom_logger
 
-logger = setup_custom_logger("HeadingNetPostProcessor", "info")
+logger = setup_custom_logger(__name__, level="info")
 
 
 class HeadingNetPostProcessor(RegionNetPostProcessor):

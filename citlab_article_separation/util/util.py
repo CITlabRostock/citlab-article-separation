@@ -1,6 +1,5 @@
 import copy
 from collections import defaultdict
-
 from citlab_python_util.geometry.polygon import Polygon, list_to_polygon_object
 from citlab_python_util.geometry.rectangle import Rectangle
 from citlab_python_util.geometry.util import ortho_connect, smooth_surrounding_polygon, polygon_clip, convex_hull, \
@@ -8,7 +7,6 @@ from citlab_python_util.geometry.util import ortho_connect, smooth_surrounding_p
 from citlab_python_util.image_processing.white_space_detection import get_binarization, is_whitespace
 from citlab_python_util.parser.xml.page.page import Page
 from citlab_python_util.parser.xml.page.page_objects import Points
-
 from citlab_article_separation.article_rectangle import ArticleRectangle
 
 

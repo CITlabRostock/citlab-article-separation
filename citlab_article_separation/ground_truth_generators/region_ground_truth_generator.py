@@ -1,19 +1,15 @@
 import argparse
-import logging
 import json
 import os
-
 import cv2
 import numpy as np
+from tqdm import tqdm
 from citlab_python_util.parser.xml.page import page_constants
 from citlab_python_util.io.path_util import prepend_folder_name
-
 from citlab_article_separation.ground_truth_generators.ground_truth_generator_base import GroundTruthGenerator
+from citlab_python_util.logging.custom_logging import setup_custom_logger
 
-logger = logging.getLogger("TextBlockGroundTruthGenerator")
-logging.basicConfig(level=logging.WARNING)
-
-from tqdm import tqdm
+logger = setup_custom_logger(__name__, level="info")
 
 
 class RegionGroundTruthGenerator(GroundTruthGenerator):

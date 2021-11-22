@@ -1,14 +1,15 @@
 import copy
-
 import jpype
+import matplotlib.patches as patches
+from matplotlib import pyplot as plt
+import numpy as np
 from citlab_python_util.geometry.polygon import norm_poly_dists
 from citlab_python_util.geometry.rectangle import Rectangle
 from citlab_python_util.geometry.util import check_intersection
 from citlab_python_util.parser.xml.page.page_objects import TextLine
+from citlab_python_util.logging.custom_logging import setup_custom_logger
 
-import matplotlib.patches as patches
-from matplotlib import pyplot as plt
-import numpy as np
+logger = setup_custom_logger(__name__, level="info")
 
 
 class ArticleRectangle(Rectangle):
@@ -162,14 +163,14 @@ class ArticleRectangle(Rectangle):
                 tl_bl = tl.baseline.to_polygon()
                 tl_bl.calculate_bounds()
             except AttributeError:
-                print(f"Textline with id {tl.id} has no baseline coordinates. Skipping...")
+                logger.warning(f"Textline with id {tl.id} has no baseline coordinates. Skipping...")
                 continue
 
             tl_surr_poly = None
             try:
                 tl_surr_poly = tl.surr_p.to_polygon().get_bounding_box()
             except (AttributeError, TypeError):
-                print(f"Textline with id {tl.id} has no surrounding polygon.")
+                logger.warning(f"Textline with id {tl.id} has no surrounding polygon.")
 
             tl_list.append([tl, tl_surr_poly, tl_bl, tl.get_article_id()])
 

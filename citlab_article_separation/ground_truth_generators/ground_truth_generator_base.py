@@ -1,16 +1,15 @@
-import logging
 import os
 from abc import ABC, abstractmethod
 from collections import namedtuple, defaultdict
 from copy import deepcopy
-
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw
 from citlab_python_util.geometry.point import rescale_points
 from citlab_python_util.parser.xml.page.page import Page
+from citlab_python_util.logging.custom_logging import setup_custom_logger
 
-logger = logging.getLogger("GroundTruthGenerator")
+logger = setup_custom_logger(__name__, level="info")
 
 
 def check_if_files_exist(*filenames):
@@ -109,7 +108,7 @@ class GroundTruthGenerator(ABC):
 
     def save_ground_truth(self, savedir):
         if not self.gt_imgs_lst:
-            print("No ground truth images to save.")
+            logger.info("No ground truth images to save.")
         else:
             if not os.path.isdir(savedir) or not os.path.exists(savedir):
                 os.mkdir(savedir)

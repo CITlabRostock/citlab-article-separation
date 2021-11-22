@@ -1,9 +1,11 @@
 import json
 import os
-import logging
 import argparse
 import multiprocessing as mp
 from citlab_python_util.parser.xml.page.page import Page
+from citlab_python_util.logging.custom_logging import setup_custom_logger
+
+logger = setup_custom_logger(__name__, level="info")
 
 
 def generate_prediction_json(xml_files, json_path):
@@ -13,7 +15,7 @@ def generate_prediction_json(xml_files, json_path):
         # load the page xml file
         page_file = Page(xml_file)
         page_name = os.path.basename(xml_file)
-        logging.info(f"Processing {xml_file}")
+        logger.info(f"Processing {xml_file}")
 
         # load text regions
         try:
@@ -38,11 +40,10 @@ def generate_prediction_json(xml_files, json_path):
     # writing to json file
     with open(json_path, "w") as outfile:
         outfile.write(json_object)
-        logging.info(f"Dumped json {json_path}")
+        logger.info(f"Dumped json {json_path}")
 
 
 if __name__ == '__main__':
-    logging.getLogger().setLevel(logging.INFO)
     parser = argparse.ArgumentParser()
     parser.add_argument("--page_paths", type=str, help="list file containing paths to pageXML files", required=True)
     parser.add_argument("--json_path", type=str, help="output path for json file", required=True)
@@ -63,14 +64,14 @@ if __name__ == '__main__':
             # start worker
             p = mp.Process(target=generate_prediction_json, args=(sublist, json_path))
             p.start()
-            logging.info(f"Started worker {index}")
+            logger.info(f"Started worker {index}")
             processes.append(p)
             # save sublist to file
             sublist_path = os.path.join(json_dir, json_name + "_" + str(index) + ".lst")
             with open(sublist_path, "w") as lst_file:
                 for path in sublist:
                     lst_file.write(path + "\n")
-                logging.info(f"Wrote sublist {sublist_path}")
+                logger.info(f"Wrote sublist {sublist_path}")
 
         for p in processes:
             p.join()

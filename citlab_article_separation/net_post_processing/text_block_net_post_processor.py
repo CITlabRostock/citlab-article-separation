@@ -1,6 +1,5 @@
 from matplotlib.collections import PolyCollection
 import matplotlib.pyplot as plt
-
 from citlab_article_separation.net_post_processing.region_net_post_processor_base import RegionNetPostProcessor
 
 
@@ -20,6 +19,7 @@ class TextBlockNetPostProcessor(RegionNetPostProcessor):
         contours = [self.remove_every_nth_point(contour, n=2, min_num_points=20, iterations=1) for contour in
                     contours]
         self.net_output_polygons.append(contours)
+
 
 if __name__ == '__main__':
     # ONB Test Set (3000 height)

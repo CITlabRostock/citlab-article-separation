@@ -1,11 +1,12 @@
 from copy import deepcopy
-
 import numpy as np
 from shapely import geometry, validation
-
 from citlab_article_separation.net_post_processing.region_to_page_writer import RegionToPageWriter
 from citlab_python_util.parser.xml.page.page_constants import sSEPARATORREGION, sTEXTREGION
 from citlab_python_util.parser.xml.page.page_objects import SeparatorRegion
+from citlab_python_util.logging.custom_logging import setup_custom_logger
+
+logger = setup_custom_logger(__name__, level="info")
 
 
 class SeparatorRegionToPageWriter(RegionToPageWriter):
@@ -30,7 +31,7 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
             try:
                 return [polygon.intersection(lEnv), polygon.intersection(rEnv)]
             except Exception as e:
-                print("Geometry error: %s" % validation.explain_validity(polygon))
+                logger.error("Geometry error: %s" % validation.explain_validity(polygon))
                 return [polygon.buffer(0)]
 
         parts = []
@@ -67,7 +68,7 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
             exIdx = closest_pt(refpt, exter)
 
             inIdx = closest_pt(exter[exIdx], inter)
-            print(exter[exIdx], inter[inIdx])
+            logger.debug(exter[exIdx], inter[inIdx])
             excwgap = exter[exIdx] + cw_perpendicular(inter[inIdx] - exter[exIdx], gap)
             incwgap = inter[inIdx] + cw_perpendicular(exter[exIdx] - inter[inIdx], gap)
             out = np.vstack((exter[:exIdx], excwgap, inter[inIdx:-1], inter[:inIdx], incwgap, exter[exIdx:]))
@@ -81,7 +82,7 @@ class SeparatorRegionToPageWriter(RegionToPageWriter):
                 inArr = np.asarray(inter)
                 ex = lazy_short_join_gap(ex, inArr, np.asarray(inter.centroid))
             poly = geometry.Polygon(ex)
-            print(len(list(poly.interiors)))
+            logger.debug(len(list(poly.interiors)))
         return poly
 
     def merge_regions(self, remove_holes=True):

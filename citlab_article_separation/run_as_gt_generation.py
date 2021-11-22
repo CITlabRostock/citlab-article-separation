@@ -1,6 +1,5 @@
 import os
 from argparse import ArgumentParser, ArgumentTypeError
-
 import cv2
 import jpype
 import matplotlib.pyplot as plt
@@ -12,7 +11,6 @@ from citlab_python_util.parser.xml.page import plot as page_plot
 from citlab_python_util.parser.xml.page.page import Page
 from citlab_python_util.plot import colors
 from matplotlib.collections import PolyCollection
-
 from citlab_article_separation.util import get_article_rectangles_from_baselines, merge_article_rectangles_vertically
 
 

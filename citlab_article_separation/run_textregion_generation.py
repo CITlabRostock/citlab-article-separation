@@ -1,8 +1,9 @@
-# -*- coding: utf-8 -*-
-
 import subprocess
 from argparse import ArgumentParser
 from multiprocessing.pool import ThreadPool
+from citlab_python_util.logging.custom_logging import setup_custom_logger
+
+logger = setup_custom_logger(__name__, level="info")
 
 
 def worker(sample, counter, flags, skipped_files):
@@ -25,10 +26,10 @@ def worker(sample, counter, flags, skipped_files):
 
     outputs = [line.rstrip('\n') for line in outputs]
 
-    print("No {:5d}: {}".format(counter, sample))
+    logger.info("No {:5d}: {}".format(counter, sample))
     # saving error when exists
     if outputs[-2] != sample and outputs[-2] != "alpha value not suitable -> is increased":
-        print(outputs[-2])
+        logger.info(outputs[-2])
         skipped_files.append(outputs[-2])
 
 
@@ -59,9 +60,9 @@ if __name__ == "__main__":
     tpool = ThreadPool(flags.num_threads)
 
     skipped_files = []
-    print("####################\ntotal number of xml files:")
-    print(len(xml_files))
-    print("####################\n")
+    logger.warning("###############")
+    logger.info(f"Total number of xml files: {len(xml_files)}")
+    logger.warning("###############")
 
     for xml_counter, xml_file in enumerate(xml_files):
         tpool.apply_async(worker, (xml_file, xml_counter + 1, flags, skipped_files))
@@ -71,7 +72,8 @@ if __name__ == "__main__":
     tpool.join()
 
     # print possible saving errors
-    print("####################\nsaving errors:")
+    logger.warning("###############")
+    logger.warning("Saving errors:")
     for skipped_file in skipped_files:
-        print(skipped_file)
-    print("####################\n")
+        logger.warning(skipped_file)
+    logger.warning("###############")

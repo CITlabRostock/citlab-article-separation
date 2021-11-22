@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
-
 import jpype
 from argparse import ArgumentParser
-
 from citlab_python_util.parser.xml.page.page import Page
 from citlab_article_separation.baseline_clustering import dbscan_baselines
 
@@ -28,8 +25,7 @@ def get_data_from_pagexml(path_to_pagexml):
             if len(baseline.x_points) == len(baseline.y_points) > 1:
                 lst_of_polygons.append(txtline.baseline.to_polygon())
                 lst_of_txtlines_adjusted.append(txtline)
-        except(AttributeError):
-            # print("'NoneType' object in PAGEXML with id {} has no attribute 'to_polygon'!\n".format(txtline.id))
+        except AttributeError:
             continue
 
     return lst_of_polygons, lst_of_txtlines_adjusted
@@ -118,7 +114,6 @@ if __name__ == "__main__":
     jpype.startJVM(jpype.getDefaultJVMPath())
 
     xml_file = flags.path_to_xml_file
-    print(xml_file)
     lst_polygons, lst_txtlines = get_data_from_pagexml(path_to_pagexml=xml_file)
 
     article_id_list = cluster_baselines_dbscan(list_of_polygons=lst_polygons,
