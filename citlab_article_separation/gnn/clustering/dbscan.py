@@ -2,10 +2,14 @@ import numpy as np
 import argparse
 import json
 import re
+from citlab_python_util.logging.custom_logging import setup_custom_logger
+
+logger = setup_custom_logger(__name__, level="info")
 
 
 class DBScanRelation:
     """ DBSCAN based on Chris McCormicks https://github.com/chrisjmccormick/dbscan"""
+
     def __init__(self,
                  min_neighbors_for_cluster=1,
                  confidence_threshold=0.5,
@@ -48,9 +52,9 @@ class DBScanRelation:
             elif self.weight_handling == 'min':
                 self.confidences = np.stack([self.confidences, np.transpose(self.confidences)], axis=-1)
                 self.confidences = np.min(self.confidences, axis=-1)
-            print(f"Confidence matrix is forced to be symmetric, by taking '{self.weight_handling}' of pairs.")
-            print("Average symmetry deviation: ", np.mean(np.abs(np.around(cc - self.confidences, decimals=4))))
-            print("Maximum symmetry deviation: ", np.max(np.abs(np.around(cc - self.confidences, decimals=4))))
+            logger.info(f"Confidence matrix is forced to be symmetric, by taking '{self.weight_handling}' of pairs.")
+            logger.debug("Average symmetry deviation: ", np.mean(np.abs(np.around(cc - self.confidences, decimals=4))))
+            logger.debug("Maximum symmetry deviation: ", np.max(np.abs(np.around(cc - self.confidences, decimals=4))))
 
         # This list holds the cluster assignment for each node in the graph
         #    -1 -> Indicates a noise node
@@ -206,8 +210,9 @@ if __name__ == "__main__":
             json_data[page_name][text_region]['article_id'] = "a" + str(clustering[i])
             del json_data[page_name][text_region]['confidences']
 
-    save_path = re.sub(r'confidences', f'DBScanMod_t{args.confidence_threshold}a{args.cluster_agreement_threshold}{args.weight_handling}', json_path)
+    save_path = re.sub(r'confidences',
+                       f'DBScanMod_t{args.confidence_threshold}a{args.cluster_agreement_threshold}{args.weight_handling}',
+                       json_path)
     with open(save_path, "w") as out_file:
         json.dump(json_data, out_file, indent=4)
         print(f"\nWrote json dump: {save_path}.")
-

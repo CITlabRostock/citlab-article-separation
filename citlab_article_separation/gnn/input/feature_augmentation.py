@@ -1,22 +1,23 @@
-import logging
 import numpy as np
+from citlab_python_util.logging.custom_logging import setup_custom_logger
+
+logger = setup_custom_logger(__name__, level="info")
 
 
 def augment_geometric_features(node_features, config, desc=''):
-    logging.info(f"applying augment_geometric_features{' - ' if desc else ''}{desc}: {config}")
     # apply feature augmentation at random, with a 50% probability for each module
     if "scaling" in config:
         if np.random.uniform(0, 1) < 0.5:
             node_features = scaling_noise(node_features)
-            logging.debug("geometric augmentation - scaling")
+            logger.debug("geometric augmentation - scaling")
     if "rotation" in config:
         if np.random.uniform(0, 1) < 0.5:
             node_features = rotation_noise(node_features)
-            logging.debug("geometric augmentation - rotation")
+            logger.debug("geometric augmentation - rotation")
     if "translation" in config:
         if np.random.uniform(0, 1) < 0.5:
             node_features = translation_noise(node_features)
-            logging.debug("geometric augmentation - translation")
+            logger.debug("geometric augmentation - translation")
     return node_features
 
 
@@ -139,7 +140,7 @@ if __name__ == '__main__':
         build_weighted_relation_graph
     from citlab_python_util.io.path_util import get_img_from_page_path
     from citlab_python_util.parser.xml.page.page import Page
-    from citlab_article_separation.gnn.input.feature_generation import build_input_and_target_bc
+    from citlab_article_separation.gnn.input.feature_generation import build_input_and_target
 
     save_dir = "/home/johannes/devel/debug/augmentation"
     page_path = "/home/johannes/devel/data/NewsEye_GT/AS_BC/NewsEye_ONB_232_textblocks/274954/" \
@@ -151,15 +152,16 @@ if __name__ == '__main__':
     visual_regions_nodes, num_points_visual_regions_nodes, \
     visual_regions_edges, num_points_visual_regions_edges, \
     gt_relations, gt_num_relations = \
-        build_input_and_target_bc(page_path=page_path,
-                                  interaction='delaunay')
+        build_input_and_target(page_path=page_path,
+                               interaction='delaunay')
 
     graph = build_weighted_relation_graph(interacting_nodes,
                                           [0.0 for i in range(len(interacting_nodes))],
                                           [{'separated': bool(e)} for e in edge_features[:, :1].flatten()])
     graph = create_undirected_graph(graph, reciprocal=False)
 
-    plot_graph_and_page(graph, node_feat, page_path, with_edges=False, with_labels=True, save_dir=save_dir, desc="original")
+    plot_graph_and_page(graph, node_feat, page_path, with_edges=False, with_labels=True, save_dir=save_dir,
+                        desc="original")
 
     # for i in range(20):
     #     node_features_scaled = scaling_noise(np.copy(node_features))
@@ -175,4 +177,5 @@ if __name__ == '__main__':
 
     for i in range(50):
         node_features_aug = augment_geometric_features(np.copy(node_feat), ('scaling', 'rotation', 'translation'))
-        plot_graph_and_page(graph, node_features_aug, page_path, with_edges=False, with_labels=True, save_dir=save_dir, desc=f"aug_{i}")
+        plot_graph_and_page(graph, node_features_aug, page_path, with_edges=False, with_labels=True, save_dir=save_dir,
+                            desc=f"aug_{i}")

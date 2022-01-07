@@ -1,17 +1,17 @@
+import json
 import numpy as np
 import tensorflow as tf
-import logging
 from random import Random
 from PIL import Image
-
 from citlab_python_util.io.path_util import *
-from citlab_article_separation.gnn.input.create_input_and_target import get_input_and_target_from_json,\
-    get_input_and_target_from_xml
 from citlab_python_util.image_processing.image_resizer import resize_image_ratio
+from citlab_python_util.logging.custom_logging import setup_custom_logger
+
+logger = setup_custom_logger(__name__, level="info")
 
 
 class InputGNN(object):
-    """Input Function Generator for article separation"""
+    """Input Function Generator for Graph Neural Network regarding article separation"""
 
     def __init__(self, flags):
         self.input_params = dict()
@@ -26,10 +26,6 @@ class InputGNN(object):
         self.input_params["num_parallel_load"] = 4  # Parallel calls for loading
         self.input_params["prefetch_load"] = 4  # Prefetch number for loading. Note that this prefetches entire batches
 
-        # Optional params when loading from pagexml instead of json
-        self.input_params['interaction_from_pagexml'] = 'delaunay'  # 'delaunay' or 'fully'
-        self.input_params['external_jsons'] = []  # list of json files including addtional input
-
         # Params for visual feature input
         self.input_params["load_mode"] = 'L'
         self.input_params["resize_max_dim"] = 1024
@@ -39,7 +35,7 @@ class InputGNN(object):
         # Updating of the default params if provided via flags as a dict
         for i in flags.input_params:
             if i not in self.input_params:
-                logging.critical(f"Given input_params-key '{i}' is not used by class 'InputGNN'!")
+                logger.critical(f"Given input_params-key '{i}' is not used by class 'InputGNN'!")
         self.input_params.update(flags.input_params)
 
         # Image loading and resizing parameters
@@ -58,19 +54,24 @@ class InputGNN(object):
                                               self.input_params["resize_max_dim"],
                                               self._img_channels]
         else:
-            logging.error("Error in resizing parameters for input image.")
+            logger.error("Error in resizing parameters for input image.")
             exit(1)
 
         self._rnd = Random()
 
     def print_params(self):
-        print("##### {}:".format("INPUT"))
+        logger.info("INPUT:")
         sorted_dict = sorted(self.input_params.items(), key=lambda kv: kv[0])
         for a in sorted_dict:
-            print("  {}: {}".format(a[0], a[1]))
+            logger.info(f"  {a[0]}: {a[1]}")
 
     def get_dataset(self):
         dataset = tf.data.TextLineDataset(self._eval_list)
+        dataset = self._process_dataset(dataset)
+        return dataset
+
+    def get_dataset_from_file_paths(self, file_paths):
+        dataset = tf.data.Dataset.from_tensor_slices(file_paths)
         dataset = self._process_dataset(dataset)
         return dataset
 
@@ -109,7 +110,6 @@ class InputGNN(object):
         if self._flags.image_input:
             input_dict_shape['image'] = self._expected_image_shape
             input_dict_shape['image_shape'] = [3]
-            # TODO: generate visual regions as [None, None, 2] (note changes in other classes, when working with it)
             input_dict_shape['visual_regions_nodes'] = [None, 2, None]
             input_dict_shape['num_points_visual_regions_nodes'] = [None]
             input_dict_shape['visual_regions_edges'] = [None, 2, None]
@@ -132,28 +132,32 @@ class InputGNN(object):
         return dataset.prefetch(self.input_params['prefetch_load'])
 
     def _map_element(self, file_path):
-        Tout_list = [tf.int32, tf.int32, tf.int32]
+        # num_nodes, interacting_nodes, num_interacting_nodes
+        dtype_list = [tf.int32, tf.int32, tf.int32]
         if self.input_params["node_feature_dim"] > 0:
-            Tout_list.append(tf.float32)
+            # node_features
+            dtype_list.append(tf.float32)
         if self.input_params["edge_feature_dim"] > 0:
-            Tout_list.append(tf.float32)
+            # edge_features
+            dtype_list.append(tf.float32)
         if self._flags.image_input:
             # image, image_shape
-            Tout_list.extend([tf.float32, tf.int32])
+            dtype_list.extend([tf.float32, tf.int32])
             # visual_regions_nodes, num_points_visual_regions_nodes
-            Tout_list.extend([tf.float32, tf.int32])
+            dtype_list.extend([tf.float32, tf.int32])
             # visual_regions_edges, num_points_visual_regions_edges
-            Tout_list.extend([tf.float32, tf.int32])
-        Tout_list.extend([tf.int32, tf.int32, tf.int32])
+            dtype_list.extend([tf.float32, tf.int32])
+        dtype_list.extend([tf.int32, tf.int32, tf.int32])
 
-        return_list = tf.py_func(func=self._parse_function, inp=[file_path], Tout=Tout_list, stateful=False)
+        # parse file
+        return_list = tf.py_func(func=self._parse_function, inp=[file_path], Tout=dtype_list, stateful=False)
 
+        # build input dict
         num_nodes = return_list[0]
         interacting_nodes = return_list[1]
         num_interacting_nodes = return_list[2]
         index = 3
 
-        # input dict
         return_dict_inputs = {'num_nodes': num_nodes,
                               'interacting_nodes': interacting_nodes,
                               'num_interacting_nodes': num_interacting_nodes}
@@ -170,8 +174,8 @@ class InputGNN(object):
                     node_features = self._mask_features(node_features, self.input_params['node_input_feature_mask'])
                     # inputs['node_features']: [batch_size, max_num_nodes, node_feature_dim (new)] float
                 else:
-                    logging.error(f"Length of node feature mask ({len(self.input_params['node_input_feature_mask'])}) "
-                                  f"does not match provided node feature dim ({self.input_params['node_feature_dim']}).")
+                    logger.error(f"Length of node feature mask ({len(self.input_params['node_input_feature_mask'])}) "
+                                 f"does not match provided node feature dim ({self.input_params['node_feature_dim']}).")
                     exit(-1)
             return_dict_inputs['node_features'] = node_features
 
@@ -187,8 +191,8 @@ class InputGNN(object):
                     edge_features = self._mask_features(edge_features, self.input_params['edge_input_feature_mask'])
                     # inputs['edge_features']: [batch_size, max_num_nodes, edge_feature_dim (new)] float
                 else:
-                    logging.error(f"Length of edge feature mask ({len(self.input_params['edge_input_feature_mask'])}) "
-                                  f"does not match provided edge feature dim ({self.input_params['edge_feature_dim']}).")
+                    logger.error(f"Length of edge feature mask ({len(self.input_params['edge_input_feature_mask'])}) "
+                                 f"does not match provided edge feature dim ({self.input_params['edge_feature_dim']}).")
                     exit(-1)
             return_dict_inputs['edge_features'] = edge_features
 
@@ -227,23 +231,52 @@ class InputGNN(object):
         return_dict_targets['relations_to_consider_gt'] = return_list[index + 2]
         return return_dict_inputs, return_dict_targets
 
-    @staticmethod
-    def _mask_features(features, mask):
+    def _mask_features(self, features, mask):
         # input: [..., feature_dim] float
         # mask: list of type bool and length feature_dim
         new_features = tf.gather(features, tf.reshape(tf.where(mask), [-1]), axis=-1)
         # new_features: [batch_size, ..., new_feature_dim] float
         return new_features
 
+    def _get_input_and_target_from_json(self, path_to_json):
+        with open(path_to_json, "r") as json_file:
+            data = json.load(json_file)
+
+        # get input and targets
+        return_dict = dict()
+        return_dict['num_nodes'] = np.array(data['num_nodes'], dtype=np.int32)
+        return_dict['interacting_nodes'] = np.array(data['interacting_nodes'], dtype=np.int32)
+        return_dict['num_interacting_nodes'] = np.array(data['num_interacting_nodes'], dtype=np.int32)
+        return_dict['node_features'] = np.array(data['node_features'], dtype=np.float32)
+        return_dict['edge_features'] = np.array(data['edge_features'], dtype=np.float32)
+        if 'visual_regions_nodes' in data and 'num_points_visual_regions_nodes' in data:
+            num_points_visual_regions_nodes = np.array(data['num_points_visual_regions_nodes'], dtype=np.int32)
+            # max_num_points_visual_regions_nodes = np.amax(num_points_visual_regions_nodes)
+            region_list = []
+            for i in range(data['num_nodes']):
+                visual_region = np.array(data['visual_regions_nodes'][i], dtype=np.float32)
+                region_list.append(visual_region)
+            return_dict['num_points_visual_regions_nodes'] = num_points_visual_regions_nodes
+            return_dict['visual_regions_nodes'] = np.stack(region_list)
+        if 'visual_regions_edges' in data and 'num_points_visual_regions_edges' in data:
+            num_points_visual_regions_edges = np.array(data['num_points_visual_regions_edges'], dtype=np.int32)
+            # max_num_points_visual_regions_edges = np.amax(num_points_visual_regions_edges)
+            region_list = []
+            for i in range(data['num_interacting_nodes']):
+                visual_region = np.array(data['visual_regions_edges'][i], dtype=np.float32)
+                region_list.append(visual_region)
+            return_dict['num_points_visual_regions_edges'] = num_points_visual_regions_edges
+            return_dict['visual_regions_edges'] = np.stack(region_list)
+
+        gt_relations = data['gt_relations']
+        gt_num_relations = data['gt_num_relations']
+        return_dict['gt_relations'] = np.array(gt_relations, dtype=np.int32)
+        return_dict['gt_num_relations'] = np.array(gt_num_relations, dtype=np.int32)
+        return return_dict
+
     def _parse_function(self, file_path):
         file_path = file_path.decode("utf-8")
-        if not self._flags.create_data_from_pagexml:
-            data_dict = get_input_and_target_from_json(file_path, False)
-        else:
-            data_dict = get_input_and_target_from_xml(file_path, False,
-                                                      self.input_params['external_jsons'],
-                                                      self.input_params['interaction_from_pagexml'],
-                                                      self._flags.image_input)
+        data_dict = self._get_input_and_target_from_json(file_path)
 
         num_nodes = data_dict['num_nodes']
         interacting_nodes = data_dict['interacting_nodes']
@@ -253,7 +286,7 @@ class InputGNN(object):
         # add node input if present
         if 'node_features' in data_dict:
             if self.input_params["node_feature_dim"] == 0:
-                logging.error(f"Error in parsing {file_path}. Node features present, but node_feature_dim set to 0.")
+                logger.error(f"Error in parsing {file_path}. Node features present, but node_feature_dim set to 0.")
                 exit(1)
             node_features = data_dict['node_features']
             return_list.append(node_features)
@@ -261,7 +294,7 @@ class InputGNN(object):
         # add edge input if present
         if 'edge_features' in data_dict:
             if self.input_params["edge_feature_dim"] == 0:
-                logging.error(f"Error in parsing {file_path}. Edge features present, but edge_feature_dim set to 0.")
+                logger.error(f"Error in parsing {file_path}. Edge features present, but edge_feature_dim set to 0.")
                 exit(1)
             edge_features = data_dict['edge_features']
             return_list.append(edge_features)
@@ -270,13 +303,10 @@ class InputGNN(object):
         if self._flags.image_input:
             if not ('visual_regions_nodes' in data_dict and 'num_points_visual_regions_nodes' in data_dict) and \
                     ('visual_regions_edges' in data_dict and 'num_points_visual_regions_edges' in data_dict):
-                logging.error(f"Error in parsing {file_path}. Image_input set to True, but visual regions missing.")
+                logger.error(f"Error in parsing {file_path}. Image_input set to True, but visual regions missing.")
                 exit(1)
             # load image
-            if not self._flags.create_data_from_pagexml:
-                image_fn = get_img_from_json_path(file_path)
-            else:
-                image_fn = get_img_from_page_path(file_path)
+            image_fn = get_img_from_json_path(file_path)
             # load image
             image = Image.open(fp=image_fn).convert(self._img_load_mode)
             image = np.array(image, dtype=np.float32)
@@ -341,29 +371,29 @@ class InputGNN(object):
 
         if gt_relations is not None and gt_relations.shape[0] > 0:
             unique_relations = np.array(gt_relations)
-            gt_class = unique_relations[:, 0]
+            gt_classes = unique_relations[:, 0]
             gt_rels = []
-            for aRel in unique_relations[:, 1:]:
-                gt_rels.append(tuple(aRel))
+            for relation in unique_relations[:, 1:]:
+                gt_rels.append(tuple(relation))
             pos_rel_set = set(gt_rels)
             rel_num = len(gt_rels)
 
             # Sample positive examples
-            classContainer = [[] for _ in range(num_classes)]
+            class_containers = [[] for _ in range(num_classes)]
 
             indices = list(range(rel_num))
             self._rnd.shuffle(indices)
             for idx in indices:
-                aGT_class = gt_class[idx]
-                aClassContainer = classContainer[aGT_class]
-                if len(aClassContainer) < num_sample_true_per_class:
+                gt_class = gt_classes[idx]
+                class_container = class_containers[gt_class]
+                if len(class_container) < num_sample_true_per_class:
                     rel = gt_rels[idx]
-                    aClassContainer.append(rel)
+                    class_container.append(rel)
 
-            for aClass in range(1, num_classes):
-                aClassContainer = classContainer[aClass]
-                relations_to_consider.extend(aClassContainer)
-                relations_to_consider_gt.extend([aClass] * len(aClassContainer))
+            for class_idx in range(1, num_classes):
+                class_container = class_containers[class_idx]
+                relations_to_consider.extend(class_container)
+                relations_to_consider_gt.extend([class_idx] * len(class_container))
 
         # Sample negative examples
         neg_samples = 0
@@ -371,10 +401,9 @@ class InputGNN(object):
         for _ in range(32 * num_sample_false):
             if neg_samples == num_sample_false:
                 break
-        # while neg_samples != num_sample_false:  # can get stuck if not enough samples are available
-            aRel = tuple([self._rnd.randint(0, num_nodes - 1) for _ in range(rel_components)])
-            if aRel not in negative_relations and aRel not in pos_rel_set:
-                negative_relations.append(aRel)
+            relation = tuple([self._rnd.randint(0, num_nodes - 1) for _ in range(rel_components)])
+            if relation not in negative_relations and relation not in pos_rel_set:
+                negative_relations.append(relation)
                 neg_samples += 1
 
         relations_to_consider.extend(negative_relations)
