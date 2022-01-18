@@ -2,7 +2,6 @@ import numpy as np
 import os
 import functools
 import json
-import logging
 import re
 import matplotlib.pyplot as plt
 from matplotlib.cm import ScalarMappable
@@ -11,22 +10,33 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.stats import gmean
 from copy import deepcopy
 import networkx as nx
-
 from citlab_python_util.parser.xml.page.page import Page
 import citlab_python_util.parser.xml.page.plot as plot_util
 from citlab_article_separation.gnn.input.feature_generation import discard_text_regions_and_lines as discard_regions
 from citlab_python_util.io.path_util import *
+from citlab_python_util.logging.custom_logging import setup_custom_logger
+
+logger = setup_custom_logger(__name__, level="info")
+
+
+def smooth_confidences(confidences):
+    dtype = confidences.dtype
+    min_val = np.nextafter(0, 1, dtype=dtype)
+    max_val = np.nextafter(1, 0, dtype=dtype)
+    confidences[confidences == 0.0] = min_val
+    confidences[confidences == 1.0] = max_val
+    return confidences
 
 
 def build_weighted_relation_graph(edges, weights, feature_dicts=None):
     if type(edges) == np.ndarray:
-        assert edges.ndim == 2, f"Expected 'relations' to be 2d, got {edges.ndim}d."
-        edges = edges.tolist()
+        assert edges.ndim == 2, f"Expected 'edges' to be 2d, got {edges.ndim}d."
     if type(weights) == np.ndarray:
-        assert weights.ndim == 1, f"Expected 'weights' to be 1d, got {weights.ndim}d."
-        weights = weights.tolist()
+        if weights.ndim != 1:
+            logger.debug(f"Expected 'weights' to be 1d, got {weights.ndim}d. Flattening.")
+            weights = weights.flatten()
     assert (len(edges) == len(weights)), f"Number of elements in 'relations' {len(edges)} and" \
-                                             f" 'weights' {len(weights)} has to match."
+                                         f" 'weights' {len(weights)} has to match."
 
     graph = nx.DiGraph()
     for i in range(len(edges)):
@@ -56,6 +66,7 @@ def create_undirected_graph(digraph, symmetry_fn=gmean, reciprocal=False):
 
 
 def build_thresholded_relation_graph(edges, weights, threshold, reciprocal=False):
+    weights = smooth_confidences(weights)
     graph_full = build_weighted_relation_graph(edges, weights)
     graph = create_undirected_graph(graph_full, reciprocal=reciprocal)
     edges_below_threshold = [(u, v) for u, v, w in graph.edges.data('weight') if w < threshold]
@@ -63,13 +74,18 @@ def build_thresholded_relation_graph(edges, weights, threshold, reciprocal=False
     return graph
 
 
+def compose_graphs(graphs):
+    return nx.compose_all(graphs)
+
+
 def build_confidence_graph_dict(graph, page_path):
     page = Page(page_path)
     text_regions = page.get_regions()['TextRegion']
-    text_regions, _ = discard_regions(text_regions)
-    assert graph.number_of_nodes() == len(text_regions), \
-        f"Number of nodes in graph ({graph.number_of_nodes()}) does not match number of text regions " \
-        f"({len(text_regions)}) in {page_path}."
+    if not graph.number_of_nodes() == len(text_regions):
+        logger.info(f"Number of nodes in graph ({graph.number_of_nodes()}) does not match number of "
+                    f"text regions ({len(text_regions)}) in {page_path}.\nDiscarding text regions.")
+        # discard text regions
+        text_regions, _ = discard_regions(text_regions)
 
     out_dict = dict()
     page_name = os.path.basename(page_path)
@@ -85,11 +101,31 @@ def build_confidence_graph_dict(graph, page_path):
 
 
 def save_conf_to_json(confidences, page_path, save_dir, symmetry_fn=gmean):
+    """
+    Saves graph confidences to a json file.
+
+    It loads the text regions given in the `page_path` pageXML file and creates an entry for each possible
+    combination of two text regions. The order of the entries in the `confidences` array is expected to match
+    the order of the text regions given in the pageXMl file.
+
+    Since the output of the graph neural network is not symmetric, a `symmetry_fn` is used to make the
+    confidences symmetric.
+
+    The json file is saved to the `save_dir` directory, matching the name of the given pageXML file.
+
+    :param confidences: square array containing the confidences
+    :param page_path: file path to corresponding pageXML file
+    :param save_dir: directory to save the json file
+    :param symmetry_fn: function that averages opposing entries (i,j) and (j,i) in the confidence array
+    :return: None
+    """
     page = Page(page_path)
     text_regions = page.get_regions()['TextRegion']
-    text_regions, _ = discard_regions(text_regions)
-    assert len(confidences) == len(text_regions), f"Number of nodes in confidences ({len(confidences)}) does not " \
-                                                  f"match number of text regions ({len(text_regions)}) in {page_path}."
+    if not len(confidences) == len(text_regions):
+        logger.info(f"Number of nodes in confidences ({len(confidences)}) does not match number of "
+                    f"text regions ({len(text_regions)}) in {page_path}.\nDiscarding text regions.")
+        # discard text regions
+        text_regions, _ = discard_regions(text_regions)
 
     # make confidences symmetric
     if symmetry_fn:
@@ -115,16 +151,32 @@ def save_conf_to_json(confidences, page_path, save_dir, symmetry_fn=gmean):
     save_path = os.path.join(save_dir, save_name)
     with open(save_path, "w") as out_file:
         json.dump(out_dict, out_file)
-        logging.info(f"Saved json with graph confidences '{save_path}'")
+        logger.info(f"Saved json with graph confidences '{save_path}'")
 
 
 def save_clustering_to_page(clustering, page_path, save_dir, info=""):
+    """
+    Saves a text region clustering to a new pageXML file.
+
+    It loads the text regions given in the `page_path` pageXML file and overwrites the custom article tag of
+    each text line in those text regions with the clustering id given in the `clustering` list.
+
+    The new pageXML file is saved to the `save_dir` directory, matching the name of the given pageXML file and
+    including an optional `info` string.
+
+    :param clustering: list of clustering ids for the text regions
+    :param page_path: file path to corresponding pageXML file
+    :param save_dir: directory to save the new pageXML file
+    :param info: (optional) string to be attached to the file name
+    :return: path to the saved pageXML file
+    """
     page = Page(page_path)
     text_regions = page.get_regions()['TextRegion']
-    # discard text regions
-    text_regions, _ = discard_regions(text_regions)
-    assert len(clustering) == len(text_regions), f"Number of nodes in clustering ({len(clustering)}) does not " \
-                                                 f"match number of text regions ({len(text_regions)}) in {page_path}."
+    if not len(clustering) == len(text_regions):
+        logger.info(f"Number of nodes in clustering ({len(clustering)}) does not match number of "
+                    f"text regions ({len(text_regions)}) in {page_path}.\nDiscarding text regions.")
+        # discard text regions
+        text_regions, _ = discard_regions(text_regions)
 
     # Set textline article ids based on clustering
     for index, text_region in enumerate(text_regions):
@@ -146,16 +198,15 @@ def save_clustering_to_page(clustering, page_path, save_dir, info=""):
         os.makedirs(save_dir)
     save_path = os.path.join(save_dir, save_name)
     page.write_page_xml(save_path)
-    logging.info(f"Saved pageXML with graph clustering '{save_path}'")
+    logger.info(f"Saved pageXML with graph clustering '{save_path}'")
     return save_path
 
 
 def graph_edge_conf_histogram(graph, num_bins):
     conf = [w for u, v, w in graph.edges.data('weight')]
-    c = np.array(conf)
     hist, bin_edges = np.histogram(conf, bins=num_bins, range=(0.0, 1.0))
     for i in range(num_bins):
-        logging.debug(f"Edges with conf [{bin_edges[i]:.2f}, {bin_edges[i + 1]:.2f}): {hist[i]}")
+        logger.debug(f"Edges with conf [{bin_edges[i]:.2f}, {bin_edges[i + 1]:.2f}): {hist[i]}")
     plt.hist(conf, num_bins, range=(0.0, 1.0), rwidth=0.98)
     plt.xticks(np.arange(0, 1.01, 0.1))
     plt.show()
@@ -182,7 +233,7 @@ def plot_confidence_histogram(confidences, bins, page_path, save_dir, desc=None)
         os.makedirs(save_dir)
     save_path = os.path.join(save_dir, save_name)
     plt.savefig(save_path, bbox_inches='tight', pad_inches=0, dpi=1000)
-    logging.info(f"Saved debug image '{save_path}'")
+    logger.info(f"Saved debug image '{save_path}'")
     plt.close(plt.gcf())
 
 
@@ -268,7 +319,7 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
         os.makedirs(save_dir)
     save_path = os.path.join(save_dir, save_name)
     plt.savefig(save_path, bbox_inches='tight', pad_inches=0, dpi=300)
-    logging.info(f"Saved debug image '{save_path}'")
+    logger.info(f"Saved debug image '{save_path}'")
     plt.close(plt.gcf())
 
 
@@ -349,20 +400,20 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
 #         os.makedirs(save_dir)
 #     save_path = os.path.join(save_dir, save_name)
 #     plt.savefig(save_path, bbox_inches='tight', pad_inches=0, dpi=1000)
-#     logging.info(f"Saved debug image '{save_path}'")
+#     logger.info(f"Saved debug image '{save_path}'")
 #     plt.close(plt.gcf())
 
 
-def plot_graph_and_page(page_path, graph, node_features, save_dir, img_path=None,
-                        with_edges=True, with_labels=True, desc=None, **kwds):
+def plot_graph_and_page(graph, node_features, page_path, save_dir,
+                        threshold, info, name, with_edges=True, with_labels=True, **kwds):
     # Get pagexml and image file
     page = Page(page_path)
-    if img_path is None:
-        img_path = get_img_from_page_path(page_path)
+    img_path = get_img_from_page_path(page_path)
 
     # Create figure
     fig, ax = plt.subplots(figsize=(16, 9))
     fig.canvas.set_window_title(img_path)
+    ax.set_title(f'GT_with_graph_conf_threshold{threshold}')
     ax.tick_params(axis='both', which='both', bottom=False, left=False, labelbottom=False, labelleft=False)
 
     # Add graph to subplot
@@ -398,28 +449,31 @@ def plot_graph_and_page(page_path, graph, node_features, save_dir, img_path=None
             edge_collection.set_zorder(2)
             graph_views['edges'] = [edge_collection]
         # optional colorbar
-        if 'edge_cmap' in kwds and 'edge_vmin' in kwds and 'edge_vmax' in kwds:
-            norm = Normalize(vmin=kwds['edge_vmin'], vmax=kwds['edge_vmax'])
-            fig.colorbar(ScalarMappable(norm=norm, cmap=kwds['edge_cmap']), ax=ax, fraction=0.046, pad=0.04)
+        if 'edge_cmap' in kwds and 'edge_color' in kwds:
+            norm = Normalize(vmin=threshold, vmax=1.0)
+            fig.colorbar(ScalarMappable(norm=norm, cmap=kwds['edge_cmap']),
+                         ax=ax, format="%.2f", pad=0.005)
     # Draw labels
     if with_labels:
         label_collection = nx.draw_networkx_labels(graph, positions, ax=ax, font_size=5)
         graph_views['labels'] = [label_collection]
-        # Draw page underneath
-        plot_util.plot_pagexml(page, img_path, ax=ax, plot_article=True, plot_legend=False)
-
     plt.connect('key_press_event', lambda event: toggle_graph_view(event, graph_views))
+    # Draw page underneath
+    plot_util.plot_pagexml(page, img_path, ax=ax, plot_article=True, plot_legend=False)
 
     # Save image
-    desc = '' if desc is None else f'_{desc}'
-    save_name = re.sub(r'\.xml$', f'{desc}.jpg', os.path.basename(page_path))
+    page_path = os.path.relpath(page_path)
+    save_name = re.sub(r'\.xml$', f'{"_" + name if name else ""}_debug.jpg', os.path.basename(page_path))
     page_dir = os.path.dirname(page_path)
-    save_dir = os.path.join(save_dir, page_dir, f"{desc}")
+    if info:
+        save_dir = os.path.join(save_dir, page_dir, info)
+    else:
+        save_dir = os.path.join(save_dir, page_dir)
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
     save_path = os.path.join(save_dir, save_name)
-    plt.savefig(save_path, bbox_inches='tight', pad_inches=0, dpi=1000)
-    logging.info(f"Saved debug image '{save_path}'")
+    plt.savefig(save_path, bbox_inches='tight', pad_inches=0, dpi=300)
+    logger.info(f"Saved debug image '{save_path}'")
     plt.close(plt.gcf())
 
 
