@@ -1,4 +1,3 @@
-import logging
 import os
 import re
 import time
@@ -14,6 +13,9 @@ from citlab_python_util.parser.xml.page.page import Page
 from citlab_article_separation.gnn.clustering.clustering_validity import calinkski_harabasz_score, c_index_score, \
     connectivity_score
 from citlab_article_separation.gnn.clustering.dbscan import DBScanRelation
+from citlab_python_util.logging.custom_logging import setup_custom_logger
+
+logger = setup_custom_logger(__name__, level="info")
 
 
 class TextblockClustering(object):
@@ -46,6 +48,7 @@ class TextblockClustering(object):
         self.clustering_params["method"] = "average"
         self.clustering_params["criterion"] = "maxclust"
         self.clustering_params["t"] = -1.0
+        self.clustering_params["max_clusters"] = 100
         # [greedy]
         self.clustering_params["max_iteration"] = 1000
         # [dbscan_std]
@@ -55,7 +58,7 @@ class TextblockClustering(object):
         # Updating of the default params if provided via flags as a dict
         for i in self._flags.clustering_params:
             if i not in self.clustering_params:
-                logging.critical(f"Given input_params-key '{i}' is not used by class 'TextblockClustering'!")
+                logger.critical(f"Given input_params-key '{i}' is not used by class 'TextblockClustering'!")
         self.clustering_params.update(flags.clustering_params)
 
         # Public params to access clustering results
@@ -81,13 +84,14 @@ class TextblockClustering(object):
     def set_debug(self, page_path, save_dir):
         self._page_path = page_path
         self._save_dir = save_dir
-        self._debug = True
+        if self._page_path and self._save_dir:
+            self._debug = True
 
     def print_params(self):
-        logging.info("CLUSTERING:")
+        logger.info("CLUSTERING:")
         sorted_dict = sorted(self.clustering_params.items(), key=lambda kv: kv[0])
         for a in sorted_dict:
-            logging.info(f"  {a[0]}: {a[1]}")
+            logger.info(f"  {a[0]}: {a[1]}")
 
     def get_info(self, method):
         """Returns an info string with the most important paramters of the given method"""
@@ -119,11 +123,11 @@ class TextblockClustering(object):
         """
         self._conf_mat = np.array(confs)
         self._mat_dim = self._conf_mat.shape[0]
+        # Substitute confidences of 0.0 and 1.0 with next bigger/smaller float (to prevent zero divides)
+        self._smooth_confs()
         # Make confidence matrix symmetric (if not already is)
         if symmetry_fn:
             self._make_symmetric(symmetry_fn)
-        # Substitute confidences of 0.0 and 1.0 with next bigger/smaller float (to prevent zero divides)
-        self._smooth_confs()
         # Convert to (pseudo) distances
         self._dist_mat = -np.log(self._conf_mat)
         # Distances for same elements should be 0
@@ -161,13 +165,13 @@ class TextblockClustering(object):
         self.tb_classes = None
 
         if self._mat_dim == 2:  # we have exactly two text regions
-            logging.info(f'No clustering performed for two text regions. Decision based on confidence '
+            logger.info(f'No clustering performed for two text regions. Decision based on confidence '
                          f'threshold ({self._conf_mat[0, 1]} >= {self.clustering_params["confidence_threshold"]}).')
             self.tb_labels = [1, 1] if self._conf_mat[0, 1] >= self.clustering_params["confidence_threshold"] else [1, 2]
         else:  # atleast three text regions
             if getattr(self, f'_{method}', None):
                 fctn = getattr(self, f'_{method}', None)
-                logging.info(f'Performing clustering with method "{method}"')
+                logger.info(f'Performing clustering with method "{method}"')
                 fctn()
             else:
                 raise NotImplementedError(f'Cannot find clustering method "_{method}"!')
@@ -218,15 +222,15 @@ class TextblockClustering(object):
             #  stärkste Kante
             (i, j) = np.unravel_index(np.argmax(self._calcMat), self._conf_mat.shape)
             if self._calcMat[i, j] > 0:
-                logging.debug(f'{i}–{j} mit {self._calcMat[i, j]} …')
+                logger.debug(f'{i}–{j} mit {self._calcMat[i, j]} …')
                 self._greedy_step(i, j)
                 self._classes2labels()
                 self._calc_relative_LLH()
-                logging.debug(f'… LLH = {self.rel_LLH}')
-                logging.debug(f'{self.tb_labels}')
-                logging.debug(f'{self.tb_classes}')
+                logger.debug(f'… LLH = {self.rel_LLH}')
+                logger.debug(f'{self.tb_labels}')
+                logger.debug(f'{self.tb_classes}')
             else:
-                logging.debug(f'… after {self.clustering_params["max_iteration"] - iter_count} iterations')
+                logger.debug(f'… after {self.clustering_params["max_iteration"] - iter_count} iterations')
                 break
 
         self.tb_classes = [cls for cls in self.tb_classes if len(cls) > 0]
@@ -250,12 +254,20 @@ class TextblockClustering(object):
 
     def _linkage(self):
         linkage_res = linkage(self._cond_dists, method=self.clustering_params["method"])
-        num_clusters, labels = self._validate_clusters(linkage_res)
-        if self._debug:
-            self._debug_linkage(linkage_res, num_clusters)
-        # self.tb_labels = fcluster(linkage_res, t=t, criterion=self.clustering_params["criterion"])
-        # self.tb_labels = fcluster(linkage_res, t=num_clusters, criterion=self.clustering_params["criterion"])
-        self.tb_labels = labels
+        if self.clustering_params["t"] == -1:
+            logger.info(f"linkage with distance thresholding.")
+            hierarchical_distances = linkage_res[:, 2]
+            distance_mean = float(np.mean(hierarchical_distances))
+            distance_median = float(np.median(hierarchical_distances))
+            t = 1 / 2 * (distance_mean + distance_median)
+            self.tb_labels = fcluster(linkage_res, t=t, criterion=self.clustering_params["criterion"])
+        else:
+            num_clusters, labels = self._validate_clusters(linkage_res)
+            if self._debug:
+                self._debug_linkage(linkage_res, num_clusters)
+            # self.tb_labels = fcluster(linkage_res, t=t, criterion=self.clustering_params["criterion"])
+            # self.tb_labels = fcluster(linkage_res, t=num_clusters, criterion=self.clustering_params["criterion"])
+            self.tb_labels = labels
         self._labels2classes()
         self.num_classes = len(self.tb_classes)
         self.num_noise = len([label for label in self.tb_labels if label == -1])
@@ -272,7 +284,7 @@ class TextblockClustering(object):
         # con_scores = []  # connectivity scores
 
         # Validate possible clusterings
-        max_clusters = self._mat_dim
+        max_clusters = min(self._mat_dim, self.clustering_params["max_clusters"])  # try at most N clusters
         tree = cut_tree(linkage_res)  # all clusterings based on linkage result
         tree = np.transpose(tree[:, ::-1])[:max_clusters, :]
         labels_list = tree.tolist()
@@ -292,15 +304,15 @@ class TextblockClustering(object):
             except ValueError:  # not defined if num_labels == num_samples
                 s = 0.0
             s_scores.append(s)
-            ssw, ssb, sst, ch = calinkski_harabasz_score(self._dist_mat, labels, is_squared=False)
+            # ssw, ssb, sst, ch = calinkski_harabasz_score(self._dist_mat, labels, is_squared=False)
             # ch_scores.append(ch)
-            ssw_scores.append(ssw)
-            ssb_scores.append(ssb)
-            sst_scores.append(sst)
+            # ssw_scores.append(ssw)
+            # ssb_scores.append(ssb)
+            # sst_scores.append(sst)
             # con = connectivity_score(self._dist_mat, labels, num_neighbors=5)
             # con_scores.append(con)
-            c = c_index_score(self._dist_mat, labels, is_squared=False)
-            c_scores.append(c)
+            # c = c_index_score(self._dist_mat, labels, is_squared=False)
+            # c_scores.append(c)
             # c1 = c_index.calc_cindex_clusterSim_implementation(c_index.pdist_array(self._dist_mat), labels)
             # c1_scores.append(c1)
             # c2 = c_index.calc_cindex_nbclust_implementation(c_index.pdist_array(self._dist_mat), labels)
@@ -312,20 +324,22 @@ class TextblockClustering(object):
         cluster_by_elbow["silhouette"] = cluster_num
         # elbow = self._elbow_method(cluster_nums[1:], con_scores, "connectivity", 'convex', 'increasing')
         # cluster_by_elbow["connectivity"] = elbow
-        cluster_num = self._elbow_method(cluster_nums[1:], c_scores, "c_index", 'convex', 'decreasing')
-        cluster_by_elbow["c_index"] = cluster_num
+        # cluster_num = self._elbow_method(cluster_nums[1:], c_scores, "c_index", 'convex', 'decreasing')
+        # cluster_by_elbow["c_index"] = cluster_num
         # elbow = self._elbow_method(cluster_nums[1:], c1_scores, "c_index_sim", 'convex', 'decreasing')
         # cluster_by_elbow["c1_index"] = elbow
         # elbow = self._elbow_method(cluster_nums[1:], c2_scores, "c_index_nbClust", 'convex', 'decreasing')
         # cluster_by_elbow["c2_index"] = elbow
         # elbow = self._elbow_method(cluster_nums[1:], ch_scores, "calinkski_harabasz", 'convex', 'increasing')
         # cluster_by_elbow["ch_score"] = elbow
-        cluster_num = self._elbow_method(cluster_nums[1:], ssw_scores, "ssw", 'convex', 'decreasing')
-        cluster_by_elbow["ssw"] = cluster_num
+        # cluster_num = self._elbow_method(cluster_nums[1:], ssw_scores, "ssw", 'convex', 'decreasing')
+        # cluster_by_elbow["ssw"] = cluster_num
         # elbow = self._elbow_method(cluster_nums[1:], ssb_scores, "ssb", 'concave', 'increasing')
         # cluster_by_elbow["ssb"] = elbow
+        # ssw_scores[-1] = ssw_scores[-2]  # set last ssw score (which is 0) to previous value to prevent zero-divide
+        # online = False to take first knee in hartigan
         # cluster_num = self._elbow_method(cluster_nums[1:], np.log(np.array(ssb_scores) / np.array(ssw_scores)),
-        #                                  "hartigan", 'concave', 'increasing')
+        #                                  "hartigan", 'concave', 'increasing', online=False)
         # cluster_by_elbow["hartigan"] = cluster_num
         # cluster merge distances
         last_merges = linkage_res[-int(max_clusters):, 2]
@@ -333,25 +347,24 @@ class TextblockClustering(object):
         idxs = np.arange(1, len(last_merges) + 1, dtype=np.int32)
         cluster_num = self._elbow_method(idxs, last_merges[::-1], "merge_distance", "convex", "decreasing")
         cluster_by_elbow["merge"] = cluster_num
-        logging.debug(f"Time for cluster validity check = {time.time() - timer}")
+        logger.debug(f"Time for cluster validity check = {time.time() - timer}")
 
-        logging.debug(f"Cluster suggestion by elbow: {cluster_by_elbow}")
-        max_silhouette_index = np.argmax(s_scores) + 2  # first silhouette score at two clusters
-        logging.debug(f"Max silhouette score at {max_silhouette_index} clusters")
+        logger.debug(f"Cluster suggestion by elbow: {cluster_by_elbow}")
+        max_silhouette_index = np.argmax(s_scores) + 2  # first silhouette score is at two clusters
+        logger.debug(f"Max silhouette score at {max_silhouette_index} clusters")
         if self.clustering_params["t"] == "silhouette":
             num_clusters = max_silhouette_index
-        elif self.clustering_params["t"] == "c_index":
-            num_clusters = cluster_by_elbow["c_index"]
-        elif self.clustering_params["t"] == "ssw":
-            num_clusters = cluster_by_elbow["ssw"]
-        elif self.clustering_params["t"] == "merge":
-            num_clusters = cluster_by_elbow["merge"]
         else:
-            num_clusters = 1
+            try:
+                num_clusters = cluster_by_elbow[self.clustering_params["t"]]
+            except KeyError:
+                logger.error(f'Clustering param t = {self.clustering_params["t"]} not in validity indices. '
+                             f'Defaulting to num_clusters = 1')
+                num_clusters = 1
         num_clusters = num_clusters if num_clusters is not None else 1
         return num_clusters, labels_list[num_clusters - 1]
 
-    def _elbow_method(self, x, y, name, curve, direction):
+    def _elbow_method(self, x, y, name, curve, direction, online=True):
         # see https://towardsdatascience.com/cheat-sheet-to-implementing-7-methods-for-selecting-optimal-number-of-clusters-in-python-898241e1d6ad
         # see https://github.com/arvkevi/kneed for implementation
         # for sensitivity in range(1, 0, -1):  # start conservative and work down
@@ -360,9 +373,15 @@ class TextblockClustering(object):
         #     if elbow is not None:  # break if elbow was found
         #         break
         sens = 1.0
-        kneedle = kneed.KneeLocator(x, y, curve=curve, direction=direction, S=sens, online=True)
+        kneedle = kneed.KneeLocator(x, y, curve=curve, direction=direction, S=sens, online=online)
+        # kneedle = kneed.KneeLocator(x, y, curve=curve, direction=direction, S=sens, online=True,
+        #                             interp_method="polynomial", polynomial_degree=7)
+        # try:  # take second elbow if available
+        #     elbow = list(kneedle.all_elbows)[1]
+        # except IndexError:
+        #     elbow = kneedle.elbow
         elbow = kneedle.elbow
-        logging.debug(f"{name} elbows (s = {sens}): {sorted(kneedle.all_elbows)}")
+        logger.debug(f"{name} elbows (s = {sens}): {sorted(kneedle.all_elbows)}")
         if self._debug:
             self._debug_elbows(x, y, kneedle.all_elbows, name)
         return elbow
@@ -376,29 +395,37 @@ class TextblockClustering(object):
         ax.plot(x[1:], growth, marker='o', label="growth")
         ax.plot(x[2:], acceleration, marker='o', label="acceleration")
         ax.xaxis.set_ticks(np.arange(np.min(x), np.max(x) + 1))
-        plt.axhline(y=0, color='black', linestyle='-')
+        ax.axhline(y=0, color='black', linestyle='-')  # x-axis at y = 0
+
+        label = "elbow"
         for elbow in elbows:
-            plt.vlines(elbow, plt.ylim()[0], plt.ylim()[1], linestyles=":", label="elbow")
+            ax.axvline(elbow, ymin=0.0, ymax=1.0, linestyle=":", color="black", label=label)  # elbow indicators
+            ax.text(elbow, 0.5, str(elbow), transform=ax.get_xaxis_text1_transform(0)[0])  # elbow number
+            label = ""  # only set label once for elbows
         ax.legend()
         # Save image
         page_path = os.path.relpath(self._page_path)
         save_name = re.sub(r'\.xml$', f'_elbow_{name}.jpg', os.path.basename(page_path))
         page_dir = os.path.dirname(page_path)
         info = self.get_info(self._flags.clustering_method)
+        if self._flags.mask_heading_separated_confs:
+            info += "_maskHead"
+        if self._flags.mask_horizontally_separated_confs:
+            info += "_maskSep"
         save_dir = os.path.join(self._save_dir, page_dir, info)
         if not os.path.isdir(save_dir):
             os.makedirs(save_dir)
         save_path = os.path.join(save_dir, save_name)
         plt.savefig(save_path, bbox_inches='tight', pad_inches=0, dpi=300)
-        logging.debug(f"Saved {name} elbow image '{save_path}'")
+        logger.debug(f"Saved {name} elbow image '{save_path}'")
         plt.close(plt.gcf())
 
     def _debug_linkage(self, linkage_res, num_clusters):
         # https://joernhees.de/blog/2015/08/26/scipy-hierarchical-clustering-and-dendrogram-tutorial/
         page = Page(self._page_path)
-        logging.debug("Page:")
-        logging.debug(f"  Number of text_regions = {len(page.get_text_regions())}")
-        logging.debug(f"  Number of articles = {len(page.get_article_dict().keys())}")
+        logger.debug("Page:")
+        logger.debug(f"  Number of text_regions = {len(page.get_text_regions())}")
+        logger.debug(f"  Number of articles = {len(page.get_article_dict().keys())}")
 
         hierarchical_distances = linkage_res[:, 2]
         coph_corr_coeff, coph_dists = cophenet(linkage_res, self._cond_dists)
@@ -411,36 +438,37 @@ class TextblockClustering(object):
         coph_dist_mean = float(np.mean(coph_dists))
         coph_dist_median = float(np.median(coph_dists))
         coph_dist_max = float(np.max(coph_dists))
-        logging.debug("Distances:")
-        logging.debug(f"  linkage_dists_max = {ha_dist_max:.3f}")
-        logging.debug(f"  linkage_dists_mean = {ha_dist_mean:.3f}")
-        logging.debug(f"  linkage_dists_median = {ha_dist_median:.3f}")
-        logging.debug(f"  gnn_dists_max = {gnn_dist_max:.3f}")
-        logging.debug(f"  gnn_dists_mean = {gnn_dist_mean:.3f}")
-        logging.debug(f"  gnn_dists_median = {gnn_dist_median:.3f}")
-        logging.debug(f"  coph_dists_max = {coph_dist_max:.3f}")
-        logging.debug(f"  coph_dists_mean = {coph_dist_mean:.3f}")
-        logging.debug(f"  coph_dists_median = {coph_dist_median:.3f}")
+        logger.debug("Distances:")
+        logger.debug(f"  linkage_dists_max = {ha_dist_max:.3f}")
+        logger.debug(f"  linkage_dists_mean = {ha_dist_mean:.3f}")
+        logger.debug(f"  linkage_dists_median = {ha_dist_median:.3f}")
+        logger.debug(f"  gnn_dists_max = {gnn_dist_max:.3f}")
+        logger.debug(f"  gnn_dists_mean = {gnn_dist_mean:.3f}")
+        logger.debug(f"  gnn_dists_median = {gnn_dist_median:.3f}")
+        logger.debug(f"  coph_dists_max = {coph_dist_max:.3f}")
+        logger.debug(f"  coph_dists_mean = {coph_dist_mean:.3f}")
+        logger.debug(f"  coph_dists_median = {coph_dist_median:.3f}")
         t_old = 1 / 2 * (ha_dist_mean + ha_dist_median)
         t = 2 * ha_dist_mean
-        logging.debug(f"  Threshold_old = {t_old:.3f}")
-        logging.debug(f"  Threshold = {t:.3f}")
-        logging.debug(f"  Cophenetic Correlation Coefficient = {coph_corr_coeff}")
+        logger.debug(f"  Threshold_old = {t_old:.3f}")
+        logger.debug(f"  Threshold = {t:.3f}")
+        logger.debug(f"  Cophenetic Correlation Coefficient = {coph_corr_coeff}")
 
-        logging.debug(f"Final number of clusters = {num_clusters}")
+        logger.debug(f"Final number of clusters = {num_clusters}")
         dist_maxclust_low = linkage_res[-num_clusters, 2]
         dist_maxclust_high = linkage_res[-(num_clusters - 1), 2]
-        logging.debug(f"  corresponding merge dist range: [{dist_maxclust_low:.3f}, {dist_maxclust_high:.3f}]")
+        logger.debug(f"  corresponding merge dist range: [{dist_maxclust_low:.3f}, {dist_maxclust_high:.3f}]")
 
         # Create dendogram figure
         fig, ax = plt.subplots(1, 1, figsize=(15, 15))
         ax.set_title(f"Dendogram, {self.get_info(self._flags.clustering_method)}")
         color_thresh = (dist_maxclust_low + dist_maxclust_high) / 2
         dendrogram(linkage_res, ax=ax, color_threshold=color_thresh,
-                   count_sort=True, show_contracted=True, show_leaf_counts=True)
+                   count_sort=True, show_contracted=True, show_leaf_counts=True, leaf_rotation=45)
         # stepsize = 0.1
         # start, end = ax.get_ylim()
         # ax.yaxis.set_ticks(np.arange(start, end, stepsize))
+
         plt.axhline(y=color_thresh, color='r', linestyle=':')
         ax.annotate(f'final', xy=(1, color_thresh), xytext=(0, color_thresh))
         plt.axhline(y=ha_dist_mean, color='r', linestyle=':')
@@ -457,12 +485,16 @@ class TextblockClustering(object):
         save_name = re.sub(r'\.xml$', f'_dendogram.jpg', os.path.basename(page_path))
         page_dir = os.path.dirname(page_path)
         info = self.get_info(self._flags.clustering_method)
+        if self._flags.mask_heading_separated_confs:
+            info += "_maskHead"
+        if self._flags.mask_horizontally_separated_confs:
+            info += "_maskSep"
         save_dir = os.path.join(self._save_dir, page_dir, info)
         if not os.path.isdir(save_dir):
             os.makedirs(save_dir)
         save_path = os.path.join(save_dir, save_name)
         plt.savefig(save_path, bbox_inches='tight', pad_inches=0, dpi=300)
-        logging.debug(f"Saved dendogram image '{save_path}'")
+        logger.debug(f"Saved dendogram image '{save_path}'")
         plt.close(plt.gcf())
 
     def _dbscan(self):
