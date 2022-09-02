@@ -31,7 +31,7 @@ def get_text_region_geometric_features(text_region, norm_x, norm_y):
     :param norm_y: norm scalar for the height/y (usually image height)
     :return: 4d geometric feature vector
     """
-    tr_points = np.array(text_region.points.points_list, dtype=np.int32)
+    tr_points = np.asarray(text_region.points.points_list, dtype=np.int32)
     # bounding box of text region
     min_x, max_x, min_y, max_y = get_bounding_box(tr_points)
     width = float(max_x) - float(min_x)
@@ -67,7 +67,8 @@ def get_text_region_baseline_features(text_region, norm_x, norm_y):
     bottom_baseline = text_region.text_lines[-1].baseline
     for baseline in (top_baseline, bottom_baseline):
         # bounding box of baseline
-        min_x, max_x, min_y, max_y = get_bounding_box(baseline.points_list)
+        points_baseline = np.asarray(baseline.points_list, dtype=np.int32)
+        min_x, max_x, min_y, max_y = get_bounding_box(points_baseline)
         width = float(max_x) - float(min_x)
         height = float(max_y) - float(min_y)
         # feature vector describing the extension of the baseline
@@ -778,23 +779,24 @@ def build_input_and_target(page_path,
                                  f"text block similarity dict. Using 0.5.")
                     edge_feature.extend([0.5])
         # external features
-        for ext in external_data:
-            try:
-                ext_page = ext[os.path.basename(page_path)]
-            except KeyError:
-                logger.warning(f'Could not find key {os.path.basename(page_path)} in external data json. Skipping.')
-                continue
-            if 'edge_features' in ext_page:
+        if external_data:
+            for ext in external_data:
                 try:
-                    edge_feature.extend(ext_page['edge_features'][text_region_a.id][text_region_b.id])
-                except (KeyError, TypeError):
-                    logger.debug(f"Could not find entry edge_features->{text_region_a.id}->{text_region_b.id} in "
-                                 f"external json. Defaulting.")
+                    ext_page = ext[os.path.basename(page_path)]
+                except KeyError:
+                    logger.warning(f'Could not find key {os.path.basename(page_path)} in external data json. Skipping.')
+                    continue
+                if 'edge_features' in ext_page:
                     try:
-                        edge_feature.extend(ext_page['edge_features']['default'])
-                    except KeyError:
-                        logger.debug(f"Could not find entry edge_features->default in external json. Using 0.5.")
-                        edge_feature.extend([0.5])
+                        edge_feature.extend(ext_page['edge_features'][text_region_a.id][text_region_b.id])
+                    except (KeyError, TypeError):
+                        logger.debug(f"Could not find entry edge_features->{text_region_a.id}->{text_region_b.id} in "
+                                     f"external json. Defaulting.")
+                        try:
+                            edge_feature.extend(ext_page['edge_features']['default'])
+                        except KeyError:
+                            logger.debug(f"Could not find entry edge_features->default in external json. Using 0.5.")
+                            edge_feature.extend([0.5])
         # final edge feature vector
         edge_features.append(edge_feature)
 
@@ -971,112 +973,127 @@ def generate_feature_jsons(page_paths,
 
 
 if __name__ == '__main__':
-    page_list = "/home/johannes/devel/projects/tf_rel/lists/onb230/onb_230_gt.lst"
-    bert_path = "/home/johannes/devel/projects/tf_rel/resources/bert/pred_onb_230_for_bert.json"
-    ulr_path = "/home/johannes/devel/projects/tf_rel/data/GT_ULR/conf_ULR/ulr_onb_230_conf.json"
+    page_path = "/home/johannes/devel/TEMP/koeln112_as_gt_test_relations/AS_GT_Koeln_Relations_validation/page/" \
+                "0001_Koelnische_Zeitung._1803-1945_95_96_(21.2.1936)_Seite_12.xml"
 
-    # Get external json data
-    json_timer = time.time()
-    with open(bert_path, "r") as bert_file:
-        bert_data = json.load(bert_file)
-    with open(ulr_path, "r") as ulr_file:
-        ulr_data = json.load(ulr_file)
-    logger.info(f"Time (loading external jsons): {time.time() - json_timer:.2f} seconds")
+    num_nodes, interacting_nodes, num_interacting_nodes, node_features, edge_features, \
+    visual_regions_nodes, num_points_visual_regions_nodes, \
+    visual_regions_edges, num_points_visual_regions_edges, \
+    gt_relations, gt_num_relations = \
+        build_input_and_target(page_path=page_path, interaction="delaunay", separators="bb")
 
-    # Setup textblock similarity feature extractor
-    wv_lang = "german"
-    wv_path = "/home/johannes/devel/projects/tf_rel/resources/newseye_de_300.w2v"
-    sim_feat_extractor = TextblockSimilarity(language=wv_lang, wv_path=wv_path)
+    print(gt_relations)
+    with open("/home/johannes/devel/TEMP/koeln112_as_gt_test_relations/old_feat.txt", "w") as out:
+        out.write(str(gt_relations))
+        print(f"Wrote gt_relations to file {out.name}")
 
-    page_paths = [line.rstrip() for line in open(page_list, "r")]
-    for page_path in page_paths:
-        regions, text_lines, baselines, article_ids, resolution = get_data_from_pagexml(page_path)
-        try:
-            text_regions = regions['TextRegion']
-        except KeyError:
-            logger.error(f'No TextRegions found in {page_path}. Skipping.')
-            continue
+    #########################
 
-        # discard TextRegions and corresponding TextLines if necessary
-        text_regions, text_lines = discard_text_regions_and_lines(text_regions, text_lines)
-
-        # number of nodes
-        num_nodes = len(text_regions)
-        if num_nodes <= 1:
-            logger.warning(f'Less than two nodes found in {page_path}. Skipping.')
-            continue
-
-        # pre-compute text block similarities with word vectors
-        tb_sim_dict = get_text_regions_wv_sim(text_regions, sim_feat_extractor)
-
-        logger.info(f"PAGE {page_path}")
-        for i in range(len(text_regions)):
-            for j in range(i+1, len(text_regions)):
-                text_region_a, text_region_b = text_regions[i], text_regions[j]
-                try:
-                    sim_wv_ij = tb_sim_dict['edge_features'][text_region_a.id][text_region_b.id][0]
-                    sim_wv_ji = tb_sim_dict['edge_features'][text_region_b.id][text_region_a.id][0]
-                except KeyError:
-                    logger.error(f"Could not find entry edge_features->{text_region_a.id}->{text_region_b.id} in "
-                                 f"text block similarity dict. Defaulting.")
-                    try:
-                        sim_wv_ij = tb_sim_dict['edge_features']['default'][0]
-                        sim_wv_ji = tb_sim_dict['edge_features']['default'][0]
-                    except KeyError:
-                        logger.error(f"Could not find entry edge_features->default in "
-                                     f"text block similarity dict. Using 0.5.")
-                        sim_wv_ij = 0.5
-                        sim_wv_ji = 0.5
-                # bert features
-                try:
-                    ext_page = bert_data[os.path.basename(page_path)]
-                except KeyError:
-                    logger.warning(
-                        f'Could not find key {os.path.basename(page_path)} in external data json. Skipping.')
-                    continue
-                try:
-                    sim_bert_ij = ext_page['edge_features'][text_region_a.id][text_region_b.id][0]
-                    sim_bert_ji = ext_page['edge_features'][text_region_b.id][text_region_a.id][0]
-                except (KeyError, TypeError):
-                    logger.error(
-                        f"Could not find entry edge_features->{text_region_a.id}->{text_region_b.id} in "
-                        f"external json. Defaulting.")
-                    try:
-                        sim_bert_ij = ext_page['edge_features']['default'][0]
-                        sim_bert_ji = ext_page['edge_features']['default'][0]
-                    except KeyError:
-                        logger.error(
-                            f"Could not find entry edge_features->default in external json. Using 0.5.")
-                        sim_bert_ij = 0.5
-                        sim_bert_ji = 0.5
-                # ulr features
-                try:
-                    ext_page = ulr_data[os.path.basename(page_path)]
-                except KeyError:
-                    logger.warning(
-                        f'Could not find key {os.path.basename(page_path)} in external data json. Skipping.')
-                    continue
-                try:
-                    sim_ulr_ij = ext_page['edge_features'][text_region_a.id][text_region_b.id][0]
-                    sim_ulr_ji = ext_page['edge_features'][text_region_b.id][text_region_a.id][0]
-                except (KeyError, TypeError):
-                    logger.error(
-                        f"Could not find entry edge_features->{text_region_a.id}->{text_region_b.id} in "
-                        f"external json. Defaulting.")
-                    try:
-                        sim_ulr_ij = ext_page['edge_features']['default'][0]
-                        sim_ulr_ji = ext_page['edge_features']['default'][0]
-                    except KeyError:
-                        logger.error(
-                            f"Could not find entry edge_features->default in external json. Using 0.5.")
-                        sim_ulr_ij = 0.5
-                        sim_ulr_ji = 0.5
-
-                logger.info(f"---TextBlocks {i}-{j}")
-                logger.info(f"------BERT ({i}-{j})={sim_bert_ij:.2f}, ({j}-{i})={sim_bert_ji:.2f}")
-                logger.info(f"------ ULR ({i}-{j})={sim_ulr_ij:.2f}, ({j}-{i})={sim_ulr_ji:.2f}")
-                logger.info(f"------  WV ({i}-{j})={sim_wv_ij:.2f}, ({j}-{i})={sim_wv_ji:.2f}")
-
+    # page_list = "/home/johannes/devel/projects/tf_rel/lists/onb230/onb_230_gt.lst"
+    # bert_path = "/home/johannes/devel/projects/tf_rel/resources/bert/pred_onb_230_for_bert.json"
+    # ulr_path = "/home/johannes/devel/projects/tf_rel/data/GT_ULR/conf_ULR/ulr_onb_230_conf.json"
+    #
+    # # Get external json data
+    # json_timer = time.time()
+    # with open(bert_path, "r") as bert_file:
+    #     bert_data = json.load(bert_file)
+    # with open(ulr_path, "r") as ulr_file:
+    #     ulr_data = json.load(ulr_file)
+    # logger.info(f"Time (loading external jsons): {time.time() - json_timer:.2f} seconds")
+    #
+    # # Setup textblock similarity feature extractor
+    # wv_lang = "german"
+    # wv_path = "/home/johannes/devel/projects/tf_rel/resources/newseye_de_300.w2v"
+    # sim_feat_extractor = TextblockSimilarity(language=wv_lang, wv_path=wv_path)
+    #
+    # page_paths = [line.rstrip() for line in open(page_list, "r")]
+    # for page_path in page_paths:
+    #     regions, text_lines, baselines, article_ids, resolution = get_data_from_pagexml(page_path)
+    #     try:
+    #         text_regions = regions['TextRegion']
+    #     except KeyError:
+    #         logger.error(f'No TextRegions found in {page_path}. Skipping.')
+    #         continue
+    #
+    #     # discard TextRegions and corresponding TextLines if necessary
+    #     text_regions, text_lines = discard_text_regions_and_lines(text_regions, text_lines)
+    #
+    #     # number of nodes
+    #     num_nodes = len(text_regions)
+    #     if num_nodes <= 1:
+    #         logger.warning(f'Less than two nodes found in {page_path}. Skipping.')
+    #         continue
+    #
+    #     # pre-compute text block similarities with word vectors
+    #     tb_sim_dict = get_text_regions_wv_sim(text_regions, sim_feat_extractor)
+    #
+    #     logger.info(f"PAGE {page_path}")
+    #     for i in range(len(text_regions)):
+    #         for j in range(i+1, len(text_regions)):
+    #             text_region_a, text_region_b = text_regions[i], text_regions[j]
+    #             try:
+    #                 sim_wv_ij = tb_sim_dict['edge_features'][text_region_a.id][text_region_b.id][0]
+    #                 sim_wv_ji = tb_sim_dict['edge_features'][text_region_b.id][text_region_a.id][0]
+    #             except KeyError:
+    #                 logger.error(f"Could not find entry edge_features->{text_region_a.id}->{text_region_b.id} in "
+    #                              f"text block similarity dict. Defaulting.")
+    #                 try:
+    #                     sim_wv_ij = tb_sim_dict['edge_features']['default'][0]
+    #                     sim_wv_ji = tb_sim_dict['edge_features']['default'][0]
+    #                 except KeyError:
+    #                     logger.error(f"Could not find entry edge_features->default in "
+    #                                  f"text block similarity dict. Using 0.5.")
+    #                     sim_wv_ij = 0.5
+    #                     sim_wv_ji = 0.5
+    #             # bert features
+    #             try:
+    #                 ext_page = bert_data[os.path.basename(page_path)]
+    #             except KeyError:
+    #                 logger.warning(
+    #                     f'Could not find key {os.path.basename(page_path)} in external data json. Skipping.')
+    #                 continue
+    #             try:
+    #                 sim_bert_ij = ext_page['edge_features'][text_region_a.id][text_region_b.id][0]
+    #                 sim_bert_ji = ext_page['edge_features'][text_region_b.id][text_region_a.id][0]
+    #             except (KeyError, TypeError):
+    #                 logger.error(
+    #                     f"Could not find entry edge_features->{text_region_a.id}->{text_region_b.id} in "
+    #                     f"external json. Defaulting.")
+    #                 try:
+    #                     sim_bert_ij = ext_page['edge_features']['default'][0]
+    #                     sim_bert_ji = ext_page['edge_features']['default'][0]
+    #                 except KeyError:
+    #                     logger.error(
+    #                         f"Could not find entry edge_features->default in external json. Using 0.5.")
+    #                     sim_bert_ij = 0.5
+    #                     sim_bert_ji = 0.5
+    #             # ulr features
+    #             try:
+    #                 ext_page = ulr_data[os.path.basename(page_path)]
+    #             except KeyError:
+    #                 logger.warning(
+    #                     f'Could not find key {os.path.basename(page_path)} in external data json. Skipping.')
+    #                 continue
+    #             try:
+    #                 sim_ulr_ij = ext_page['edge_features'][text_region_a.id][text_region_b.id][0]
+    #                 sim_ulr_ji = ext_page['edge_features'][text_region_b.id][text_region_a.id][0]
+    #             except (KeyError, TypeError):
+    #                 logger.error(
+    #                     f"Could not find entry edge_features->{text_region_a.id}->{text_region_b.id} in "
+    #                     f"external json. Defaulting.")
+    #                 try:
+    #                     sim_ulr_ij = ext_page['edge_features']['default'][0]
+    #                     sim_ulr_ji = ext_page['edge_features']['default'][0]
+    #                 except KeyError:
+    #                     logger.error(
+    #                         f"Could not find entry edge_features->default in external json. Using 0.5.")
+    #                     sim_ulr_ij = 0.5
+    #                     sim_ulr_ji = 0.5
+    #
+    #             logger.info(f"---TextBlocks {i}-{j}")
+    #             logger.info(f"------BERT ({i}-{j})={sim_bert_ij:.2f}, ({j}-{i})={sim_bert_ji:.2f}")
+    #             logger.info(f"------ ULR ({i}-{j})={sim_ulr_ij:.2f}, ({j}-{i})={sim_ulr_ji:.2f}")
+    #             logger.info(f"------  WV ({i}-{j})={sim_wv_ij:.2f}, ({j}-{i})={sim_wv_ji:.2f}")
 
     #########################
 
