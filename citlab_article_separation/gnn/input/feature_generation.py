@@ -31,7 +31,7 @@ def get_text_region_geometric_features(text_region, norm_x, norm_y):
     :param norm_y: norm scalar for the height/y (usually image height)
     :return: 4d geometric feature vector
     """
-    tr_points = np.asarray(text_region.points.points_list, dtype=np.int32)
+    tr_points = np.array(text_region.points.points_list, dtype=np.int32)
     # bounding box of text region
     min_x, max_x, min_y, max_y = get_bounding_box(tr_points)
     width = float(max_x) - float(min_x)
@@ -161,11 +161,10 @@ def get_textline_stroke_widths_heights_dist_trafo(page_path, text_lines, img_pat
     textline_heights = dict()
     for text_line in text_lines:
         # build surrounding polygons over text lines
-        bounding_box = text_line.surr_p.to_polygon().get_bounding_box()
-        xa, xb = bounding_box.x, bounding_box.x + bounding_box.width
-        ya, yb = bounding_box.y, bounding_box.y + bounding_box.height
+        points_text_line = np.asarray(text_line.surr_p.points_list, dtype=np.int32)
+        min_x, max_x, min_y, max_y = get_bounding_box(points_text_line)
         # get swt for text line
-        text_line_swt = swt_img[ya:yb + 1, xa:xb + 1]
+        text_line_swt = swt_img[min_y:max_y + 1, min_x:max_x + 1]
         # get connected components in text line
         text_line_ccs = SWT.connected_components_cv(text_line_swt)
         # remove CCs with unreasonable size or aspect ratio
@@ -235,7 +234,7 @@ def get_text_region_heading_feature(text_region):
     """
     Generates 1d (binary) heading feature for `text_region`.
 
-    Checks whether or not the region type is a 'heading' and computes a corresponding binary feature.
+    Checks whether the region type is a 'heading' and computes a corresponding binary feature.
 
     :param text_region: TextRegion object
     :return: 1d (binary) heading feature
@@ -627,33 +626,20 @@ def get_data_from_pagexml(path_to_pagexml):
     :param path_to_pagexml: file path of the pageXML
     :return: dict of regions, list of text lines, list of baselines, list of article ids, image resolution
     """
-    # load the page xml file
     page_file = Page(path_to_pagexml)
-
-    # get text regions
     dict_of_regions = page_file.get_regions()
-
-    # get all text lines
     list_of_txt_lines = page_file.get_textlines()
-    list_of_baselines = []
-    list_of_article_ids = []
-    for txt_line in list_of_txt_lines:
-        # get the baseline of the text line as polygon
-        list_of_baselines.append(txt_line.baseline.to_polygon())
-        # get the article id of the text line
-        list_of_article_ids.append(txt_line.get_article_id())
-
-    # image resolution
-    resolution = page_file.get_image_resolution()
-    return dict_of_regions, list_of_txt_lines, list_of_baselines, list_of_article_ids, resolution
+    _, region_article_dict = page_file.get_article_region_dicts()
+    page_resolution = page_file.get_image_resolution()
+    return dict_of_regions, list_of_txt_lines, region_article_dict, page_resolution
 
 
 def build_input_and_target(page_path,
                            interaction='delaunay',
+                           separators="bb",
                            visual_regions=False,
                            external_data=None,
-                           sim_feat_extractor=None,
-                           separators="line"):
+                           sim_feat_extractor=None):
     """
     Computation of the input and target values to solve the article separation problem with a graph neural
     network on text region (baseline clusters) level.
@@ -663,6 +649,7 @@ def build_input_and_target(page_path,
 
     :param page_path: path to pageXML file
     :param interaction: method for edge set generation ('delaunay' or 'fully')
+    :param separators: method for edge separator features ('bb' or 'line')
     :param visual_regions: (bool) optionally build visual regions for nodes and edges (default False)
     :param external_data: (optional) list of additonal feature dictionaries from external json sources
     :param sim_feat_extractor: (optional) TextblockSimilarity feature extractor
@@ -673,8 +660,11 @@ def build_input_and_target(page_path,
     assert interaction in ('fully', 'delaunay'), \
         f"Interaction setup {interaction} is not supported. Choose from ('fully', 'delaunay') instead."
 
+    assert separators in ('line', 'bb'), \
+        f"Separator feature setup {separators} is not supported. Choose from ('line', 'bb') instead."
+
     # load page data
-    regions, text_lines, baselines, article_ids, resolution = get_data_from_pagexml(page_path)
+    regions, text_lines, article_dict, resolution = get_data_from_pagexml(page_path)
     norm_x, norm_y = float(resolution[0]), float(resolution[1])
     try:
         text_regions = regions['TextRegion']
@@ -831,27 +821,20 @@ def build_input_and_target(page_path,
 
     # ground-truth relations
     gt_relations = []
-    # assign article_id to text_region based on most occuring text_lines
-    num_tr_uncertain = 0
+    num_tr_ambiguous = 0
     tr_gt_article_ids = []
     for text_region in text_regions:
-        # get all article_ids for textlines in this region
-        tr_article_ids = []
-        for text_line in text_region.text_lines:
-            tr_article_ids.append(text_line.get_article_id())
-        # count article_id occurences
-        unique_article_ids = list(set(tr_article_ids))
-        article_id_occurences = np.array([tr_article_ids.count(a_id) for a_id in unique_article_ids], dtype=np.int32)
-        # assign article_id by majority vote
-        if article_id_occurences.shape[0] > 1:
-            num_tr_uncertain += 1
-            assign_index = np.argmax(article_id_occurences)
-            assign_id = unique_article_ids[int(assign_index)]
+        # get article_ids for this region
+        tr_article_ids = article_dict[text_region.id]
+        if isinstance(tr_article_ids, list) and len(tr_article_ids) > 1:
+            num_tr_ambiguous += 1
+            assign_id = tr_article_ids[0]
             tr_gt_article_ids.append(assign_id)
-            logger.debug(f"TextRegion {text_region.id}: assign article_id '{assign_id}' (from {unique_article_ids})")
+            logger.warning(f"TextRegion {text_region.id}: Found mulitple article_ids {tr_article_ids}, "
+                           f"assigning article_id '{assign_id}'.")
         else:
-            tr_gt_article_ids.append(unique_article_ids[0])
-    logger.debug(f"{num_tr_uncertain}/{len(text_regions)} text regions contained textlines of differing article_ids")
+            tr_gt_article_ids.append(tr_article_ids)
+    logger.debug(f"{num_tr_ambiguous}/{len(text_regions)} had ambiguous article relations.")
     # build gt ("1" means 'belong_to_same_article')
     for i, i_id in enumerate(tr_gt_article_ids):
         for j, j_id in enumerate(tr_gt_article_ids):
@@ -982,10 +965,16 @@ if __name__ == '__main__':
     gt_relations, gt_num_relations = \
         build_input_and_target(page_path=page_path, interaction="delaunay", separators="bb")
 
-    print(gt_relations)
-    with open("/home/johannes/devel/TEMP/koeln112_as_gt_test_relations/old_feat.txt", "w") as out:
-        out.write(str(gt_relations))
-        print(f"Wrote gt_relations to file {out.name}")
+    from citlab_article_separation.gnn.io import plot_graph_and_page, create_undirected_graph, build_weighted_relation_graph
+    graph = build_weighted_relation_graph(interacting_nodes,
+                                          [0.0 for i in range(len(interacting_nodes))],
+                                          [{'separated': bool(e)} for e in edge_features[:, :1].flatten()])
+    graph = create_undirected_graph(graph, reciprocal=False)
+
+    os.chdir("/home/johannes/devel/TEMP/koeln112_as_gt_test_relations")
+    save_dir = "/home/johannes/devel/TEMP/koeln112_as_gt_test_relations"
+    plot_graph_and_page(graph, node_features, page_path, save_dir,
+                        threshold=0.5, info="", name="myNAME", with_edges=True, with_labels=True)
 
     #########################
 
