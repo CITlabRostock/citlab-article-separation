@@ -80,7 +80,7 @@ def compose_graphs(graphs):
 
 def build_confidence_graph_dict(graph, page_path):
     page = Page(page_path)
-    text_regions = page.get_regions()['TextRegion']
+    text_regions = page.get_text_regions()
     if not graph.number_of_nodes() == len(text_regions):
         logger.info(f"Number of nodes in graph ({graph.number_of_nodes()}) does not match number of "
                     f"text regions ({len(text_regions)}) in {page_path}.\nDiscarding text regions.")
@@ -120,7 +120,7 @@ def save_conf_to_json(confidences, page_path, save_dir, symmetry_fn=gmean):
     :return: None
     """
     page = Page(page_path)
-    text_regions = page.get_regions()['TextRegion']
+    text_regions = page.get_text_regions()
     if not len(confidences) == len(text_regions):
         logger.info(f"Number of nodes in confidences ({len(confidences)}) does not match number of "
                     f"text regions ({len(text_regions)}) in {page_path}.\nDiscarding text regions.")
@@ -171,7 +171,7 @@ def save_clustering_to_page(clustering, page_path, save_dir, info=""):
     :return: path to the saved pageXML file
     """
     page = Page(page_path)
-    text_regions = page.get_regions()['TextRegion']
+    text_regions = page.get_text_regions()
     if not len(clustering) == len(text_regions):
         logger.info(f"Number of nodes in clustering ({len(clustering)}) does not match number of "
                     f"text regions ({len(text_regions)}) in {page_path}.\nDiscarding text regions.")
@@ -237,8 +237,8 @@ def plot_confidence_histogram(confidences, bins, page_path, save_dir, desc=None)
     plt.close(plt.gcf())
 
 
-def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path, save_dir,
-                                   threshold, info, with_edges=True, with_labels=True, **kwds):
+def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path, save_dir="", threshold=0.5,
+                                   info="", name="clustering", with_edges=True, with_labels=True, **kwds):
     # Get pagexml and image file
     original_page = Page(page_path)
     img_path = get_img_from_page_path(page_path)
@@ -264,9 +264,9 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
         positions[n] = region_centers[n]
         # node_positions[n][1] = page_resolution[1] - node_positions[n][1]  # reverse y-values (for plotting)
 
-    # Get article colors according to baselines
-    article_dict = original_page.get_article_dict()
-    unique_ids = sorted(set(article_dict.keys()), key=functools.cmp_to_key(compare_article_ids))
+    # Get article colors according to textlines
+    article_dict = original_page.get_article_textline_dict()
+    unique_ids = sorted(set(article_dict.keys()))  # , key=functools.cmp_to_key(compare_article_ids))
     if None in unique_ids:
         article_colors = dict(zip(unique_ids, plot_util.COLORS[:len(unique_ids) - 1] + [plot_util.DEFAULT_COLOR]))
     else:
@@ -309,7 +309,7 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
 
     # Save image
     page_path = os.path.relpath(page_path)
-    save_name = re.sub(r'\.xml$', f'_clustering_debug.jpg', os.path.basename(page_path))
+    save_name = re.sub(r'\.xml$', f'{"_" + name if name else ""}_debug.jpg', os.path.basename(page_path))
     page_dir = os.path.dirname(page_path)
     if info:
         save_dir = os.path.join(save_dir, page_dir, info)
@@ -359,7 +359,7 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
 #
 #     # Get article colors according to baselines
 #     article_dict = original_page.get_article_dict()
-#     unique_ids = sorted(set(article_dict.keys()), key=functools.cmp_to_key(compare_article_ids))
+#     unique_ids = sorted(set(article_dict.keys()))  # , key=functools.cmp_to_key(compare_article_ids))
 #     if None in unique_ids:
 #         article_colors = dict(zip(unique_ids, plot_util.COLORS[:len(unique_ids) - 1] + [plot_util.DEFAULT_COLOR]))
 #     else:
@@ -404,8 +404,8 @@ def plot_graph_clustering_and_page(graph, node_features, page_path, cluster_path
 #     plt.close(plt.gcf())
 
 
-def plot_graph_and_page(graph, node_features, page_path, save_dir,
-                        threshold, info, name, with_edges=True, with_labels=True, **kwds):
+def plot_graph_and_page(graph, node_features, page_path, save_dir="", threshold=0.5,
+                        info="", name="", with_edges=True, with_labels=True, **kwds):
     # Get pagexml and image file
     page = Page(page_path)
     img_path = get_img_from_page_path(page_path)
@@ -426,8 +426,8 @@ def plot_graph_and_page(graph, node_features, page_path, save_dir,
         # node_positions[n][1] = page_resolution[1] - node_positions[n][1]  # reverse y-values (for plotting)
 
     # Get article colors according to baselines
-    article_dict = page.get_article_dict()
-    unique_ids = sorted(set(article_dict.keys()), key=functools.cmp_to_key(compare_article_ids))
+    article_dict = page.get_article_textline_dict()
+    unique_ids = sorted(set(article_dict.keys()))  # , key=functools.cmp_to_key(compare_article_ids))
     if None in unique_ids:
         article_colors = dict(zip(unique_ids, plot_util.COLORS[:len(unique_ids) - 1] + [plot_util.DEFAULT_COLOR]))
     else:
@@ -526,22 +526,16 @@ def toggle_graph_view(event, views):
 
 
 def get_region_article_ids(page):
-    assert type(page) == Page, f"Expected object of type 'Page', got {type(page)}."
-    text_regions = page.get_regions()['TextRegion']
+    text_regions = page.get_text_regions()
+    _, region_article_dict = page.get_article_region_dicts()
+
     text_regions_article_id = []
     for text_region in text_regions:
-        # get all article_ids for textlines in this region
-        tr_article_ids = []
-        for text_line in text_region.text_lines:
-            tr_article_ids.append(text_line.get_article_id())
-        # count article_id occurences
-        unique_article_ids = list(set(tr_article_ids))
-        article_id_occurences = np.array([tr_article_ids.count(a_id) for a_id in unique_article_ids], dtype=np.int32)
-        # assign article_id by majority vote
-        if article_id_occurences.shape[0] > 1:
-            assign_index = np.argmax(article_id_occurences)
-            assign_article_id = unique_article_ids[int(assign_index)]
-            text_regions_article_id.append(assign_article_id)
+        # get article_ids for this region
+        tr_article_ids = region_article_dict[text_region.id]
+        if isinstance(tr_article_ids, list) and len(tr_article_ids) > 1:
+            assign_id = tr_article_ids[0]
+            text_regions_article_id.append(assign_id)
         else:
-            text_regions_article_id.append(unique_article_ids[0])
+            text_regions_article_id.append(tr_article_ids)
     return text_regions_article_id

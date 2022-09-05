@@ -7,6 +7,9 @@ from citlab_python_util.logging.custom_logging import setup_custom_logger
 logger = setup_custom_logger(__name__, level="info")
 
 
+# TODO: update article IDs from textlines to Relations
+
+
 def overwrite_article_ids(page_list, gt_list):
     logger.info("Load pagexml files in {} and overwrite textline article_ids from {}".format(page_list, gt_list))
     page_files = open(page_list, "r")

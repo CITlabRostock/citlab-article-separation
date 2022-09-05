@@ -27,6 +27,7 @@ class ArticleRectangle(Rectangle):
         else:
             self.a_ids = article_ids
 
+    # TODO: update article IDs from textlines to Relations
     def get_articles(self):
         # traverse the baselines/textlines and check the article id
         article_set = set()

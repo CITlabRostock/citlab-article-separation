@@ -189,11 +189,12 @@ class EvaluateRelation(object):
         return ph_dict
 
     def _mask_horizontally_separated_confs(self, confs, page_path):
-        from citlab_article_separation.util.page_stats import get_text_region_article_dict
+        # from citlab_article_separation.util.page_stats import get_text_region_article_dict
         timer = time.time()
         # get page information
         page = Page(page_path)
-        text_region_articles = get_text_region_article_dict(page=page)
+        # text_region_articles = get_text_region_article_dict(page=page)
+        _, text_region_articles = page.get_article_region_dicts()
         num_masked_correct = 0
         num_masked_error = 0
         regions = page.get_regions()
