@@ -190,7 +190,7 @@ def get_article_rectangles_from_baselines(page, image_path, stretch=False, use_s
         page = Page(page)
 
     assert type(page) == Page, f"Type must be Page, got {type(page)} instead."
-    article_dict = page.get_article_dict()
+    article_dict = page.get_article_textline_dict()
 
     article_rectangles_dict = defaultdict(list)
 

@@ -5,7 +5,7 @@ from citlab_python_util.parser.xml.page.page import Page
 
 
 def create_text_file_from_page(page: Page, path_to_save_file=None):
-    article_dict = page.get_article_dict()
+    article_dict = page.get_article_textline_dict()
     with open(path_to_save_file, 'w') as f:
         for i, textlines in enumerate(article_dict.values()):
             for tl in textlines:

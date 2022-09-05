@@ -629,7 +629,7 @@ def get_data_from_pagexml(path_to_pagexml):
     page_file = Page(path_to_pagexml)
     dict_of_regions = page_file.get_regions()
     list_of_txt_lines = page_file.get_textlines()
-    _, region_article_dict = page_file.get_article_region_dict()
+    _, region_article_dict = page_file.get_article_region_dicts()
     page_resolution = page_file.get_image_resolution()
     return dict_of_regions, list_of_txt_lines, region_article_dict, page_resolution
 
@@ -965,12 +965,16 @@ if __name__ == '__main__':
     gt_relations, gt_num_relations = \
         build_input_and_target(page_path=page_path, interaction="delaunay", separators="bb")
 
-    print(gt_relations)
-    print(gt_relations)
-    with open("/home/johannes/devel/TEMP/koeln112_as_gt_test_relations/new_feat.txt", "w") as out:
-        out.write(str(gt_relations))
-        print(f"Wrote gt_relations to file {out.name}")
+    from citlab_article_separation.gnn.io import plot_graph_and_page, create_undirected_graph, build_weighted_relation_graph
+    graph = build_weighted_relation_graph(interacting_nodes,
+                                          [0.0 for i in range(len(interacting_nodes))],
+                                          [{'separated': bool(e)} for e in edge_features[:, :1].flatten()])
+    graph = create_undirected_graph(graph, reciprocal=False)
 
+    os.chdir("/home/johannes/devel/TEMP/koeln112_as_gt_test_relations")
+    save_dir = "/home/johannes/devel/TEMP/koeln112_as_gt_test_relations"
+    plot_graph_and_page(graph, node_features, page_path, save_dir,
+                        threshold=0.5, info="", name="myNAME", with_edges=True, with_labels=True)
 
     #########################
 
