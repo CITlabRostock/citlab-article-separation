@@ -8,6 +8,20 @@ from citlab_python_util.logging.custom_logging import setup_custom_logger
 logger = setup_custom_logger(__name__, level="info")
 
 
+def get_text_region_article_dict(path_to_pagexml=None, page=None):
+    if (path_to_pagexml is None and page is None) or (path_to_pagexml is not None and page is not None):
+        raise ValueError(f"Either path to pageXML or Page object is needed!")
+    if path_to_pagexml:
+        page = Page(path_to_pagexml)
+    text_regions = page.get_text_regions()
+    article_dict = dict()
+    for text_region in text_regions:
+        # assume that all text lines of the region have the same article ID
+        a_id = text_region.text_lines[0].get_article_id()
+        article_dict[text_region.id] = a_id
+    return article_dict
+
+
 def get_page_stats(path_to_pagexml, region_stats=True, text_line_stats=True, article_stats=True):
     """ Extraction of the information contained by a given Page xml file.
 
@@ -28,9 +42,9 @@ def get_page_stats(path_to_pagexml, region_stats=True, text_line_stats=True, art
     # get regions
     dict_of_regions = page_file.get_regions()
     if article_stats:
-        _, region_article_dict = page_file.get_article_region_dicts()
-        logger.info(f"- Number of articles: {len(region_article_dict.keys())}")
-        res["Articles"] = len(region_article_dict.keys())
+        article_dict = page_file.get_article_dict()
+        logger.info(f"- Number of articles: {len(set(article_dict.keys()))}")
+        res["Articles"] = len(set(article_dict.keys()))
 
     if region_stats:
         for key in dict_of_regions:

@@ -425,7 +425,7 @@ class TextblockClustering(object):
         page = Page(self._page_path)
         logger.debug("Page:")
         logger.debug(f"  Number of text_regions = {len(page.get_text_regions())}")
-        logger.debug(f"  Number of articles = {len(page.get_article_region_dicts()[0].keys())}")
+        logger.debug(f"  Number of articles = {len(page.get_article_dict().keys())}")
 
         hierarchical_distances = linkage_res[:, 2]
         coph_corr_coeff, coph_dists = cophenet(linkage_res, self._cond_dists)

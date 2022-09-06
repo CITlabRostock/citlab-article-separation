@@ -22,7 +22,7 @@ def get_data_from_pagexml(path_to_pagexml, des_dist=50, max_d=500, use_java_code
     page_file = Page(path_to_pagexml)
 
     # get all text lines article wise
-    art_txtlines_dict = page_file.get_article_textline_dict()
+    art_txtlines_dict = page_file.get_article_dict()
     # get all text lines of the loaded page file
     lst_of_txtlines = page_file.get_textlines()
 
