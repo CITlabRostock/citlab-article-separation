@@ -4,6 +4,9 @@ from citlab_python_util.parser.xml.page.page import Page
 from citlab_article_separation.baseline_clustering import dbscan_baselines
 
 
+# TODO: update article IDs from textlines to Relations
+
+
 def get_data_from_pagexml(path_to_pagexml):
     """
     :param path_to_pagexml: file path
