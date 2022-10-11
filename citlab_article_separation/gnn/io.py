@@ -14,6 +14,7 @@ from citlab_python_util.parser.xml.page.page import Page
 import citlab_python_util.parser.xml.page.plot as plot_util
 from citlab_article_separation.gnn.input.feature_generation import discard_text_regions_and_lines as discard_regions
 from citlab_python_util.io.path_util import *
+from citlab_python_util.parser.xml.page.page_objects import Relation
 from citlab_python_util.logging.custom_logging import setup_custom_logger
 
 logger = setup_custom_logger(__name__, level="info")
@@ -171,20 +172,30 @@ def save_clustering_to_page(clustering, page_path, save_dir, info=""):
     :return: path to the saved pageXML file
     """
     page = Page(page_path)
-    text_regions = page.get_text_regions()
-    if not len(clustering) == len(text_regions):
-        logger.info(f"Number of nodes in clustering ({len(clustering)}) does not match number of "
-                    f"text regions ({len(text_regions)}) in {page_path}.\nDiscarding text regions.")
-        # discard text regions
-        text_regions, _ = discard_regions(text_regions)
+    text_region_ids = page.get_text_regions(refs_only=True)
+    assert len(clustering) == len(text_region_ids), \
+        f"Number of nodes in clustering ({len(clustering)}) does not match " \
+        f"number of text regions ({len(text_region_ids)}) in {page_path}."
 
-    # Set textline article ids based on clustering
-    for index, text_region in enumerate(text_regions):
-        article_id = clustering[index]
-        for text_line in text_region.text_lines:
-            text_line.set_article_id("a" + str(article_id))
-    # overwrite text regions (and text lines)
-    page.set_text_regions(text_regions, overwrite=True)
+    # gather regions belonging to same cluster in dict
+    article_region_pairs = zip(clustering, text_region_ids)
+    article_region_dict = dict()
+    for a_id, tr_id in article_region_pairs:
+        a_id = "a_" + str(a_id + 1)  # 0 -> a_1, 1 -> a_2, ...
+        try:
+            article_region_dict[a_id].append(tr_id)
+        except KeyError:
+            article_region_dict[a_id] = [tr_id]
+
+    # create (article) relations
+    relations = []
+    for a_id, text_region_ids in article_region_dict.items():
+        relation = Relation("link", region_refs=text_region_ids)
+        relation.set_article_id(a_id)
+        relations.append(relation)
+
+    # overwrite (article) relations
+    page.set_relations(relations, overwrite=True)
 
     # Write pagexml
     page_path = os.path.relpath(page_path)
