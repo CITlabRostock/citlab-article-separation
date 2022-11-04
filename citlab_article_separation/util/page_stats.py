@@ -1,7 +1,8 @@
 import argparse
-import os
+from pathlib import Path
 import pandas
 from citlab_python_util.parser.xml.page.page import Page
+from citlab_python_util.parser.xml.page.page_objects import REGIONS_DICT
 import citlab_python_util.parser.xml.page.page_constants as page_constants
 from citlab_python_util.logging.custom_logging import setup_custom_logger
 
@@ -21,16 +22,17 @@ def get_page_stats(path_to_pagexml, region_stats=True, text_line_stats=True, art
     page_file = Page(path_to_pagexml)
     width, height = page_file.get_image_resolution()
     logger.info(f"- Image resolution: width={width}, height={height}")
-    res["ID"] = os.path.splitext(os.path.basename(path_to_pagexml))[0]
+    res["ID"] = Path(path_to_pagexml).stem
     res["ImageWidth"] = width
     res["ImageHeight"] = height
 
     # get regions
     dict_of_regions = page_file.get_regions()
     if article_stats:
-        _, region_article_dict = page_file.get_article_region_dicts()
-        logger.info(f"- Number of articles: {len(region_article_dict.keys())}")
-        res["Articles"] = len(region_article_dict.keys())
+        article_region_dict, _ = page_file.get_article_region_dicts()
+        num_articles = len(article_region_dict)
+        logger.info(f"- Number of articles: {num_articles}")
+        res["Articles"] = num_articles
 
     if region_stats:
         for key in dict_of_regions:
@@ -60,20 +62,40 @@ if __name__ == '__main__':
                         help="Get article stats or not.")
     args = parser.parse_args()
 
-    with open(args.pagexml_list, "r") as list_file:
-        page_data = []
-        for path in list_file:
-            stats = get_page_stats(path.rstrip(), args.region_stats, args.text_line_stats, args.article_stats)
-            page_data.append(list(stats.values()))
-        column_keys = list(stats.keys())
+    page_paths = [line.rstrip() for line in open(args.pagexml_list, "r")]
 
+    # get region indices
+    column_keys = ["ID", "ImageWidth", "ImageHeight", "Articles", "TextLine"]
+    column_keys.extend(REGIONS_DICT.keys())
+
+    # get page stats
+    page_data = []
+    for path in page_paths:
+        page_dict = dict.fromkeys(tuple(column_keys))
+        stats = get_page_stats(path, args.region_stats, args.text_line_stats, args.article_stats)
+        page_dict.update(stats)
+        page_data.append(list(page_dict.values()))
+
+    # build dataframe and save csv
     if args.csv_path:
+        # df = pandas.DataFrame.from_dict(dict(zip(region_keys, page_data)), orient="index", columns=region_keys)
         df = pandas.DataFrame(page_data, columns=column_keys)
-        nan_columns = df.columns[df.isna().any()].tolist()  # check for columns containing NaN
-        if nan_columns:
-            nan_dict = dict(zip(nan_columns, ["int32"] * len(nan_columns)))
+        # remove columns without any values
+        all_nan_columns = df.columns[df.isna().all()].tolist()  # check for columns containing all NaN's
+        if all_nan_columns:
+            df.drop(columns=all_nan_columns, inplace=True)
+            logger.info(f"Removed columns that only contained NaN's: {all_nan_columns}")
+        # replace remaining NaN's
+        any_nan_columns = df.columns[df.isna().any()].tolist()  # check for columns containing any NaN
+        if any_nan_columns:
+            nan_dict = dict(zip(any_nan_columns, ["int32"] * len(any_nan_columns)))
             # replace NaN with 0 and cast columns to int (is float after fillna)
             df = df.fillna(value=0).astype(nan_dict)
-            logger.info(f"Replaced NaN values with 0 in columns {nan_columns}")
+            logger.info(f"Replaced NaN values with 0 in columns {any_nan_columns}")
         df.to_csv(args.csv_path, index=False)
         logger.info(f"Wrote data to {args.csv_path}")
+        df_stats = df.describe().round(decimals=2)
+        csv_path = Path(args.csv_path)
+        csv_stats_path = csv_path.parent / f"{csv_path.stem}_describe.csv"
+        df_stats.to_csv(csv_stats_path, index=True)
+        logger.info(f"Wrote statistics data to {csv_stats_path}")
